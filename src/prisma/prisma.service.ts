@@ -19,6 +19,7 @@ export class PrismaService
     });
 
     super({ adapter });
+    console.log('PrismaService initialized');
   }
 
   async checkDatabaseHealth() {

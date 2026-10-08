@@ -43,6 +43,7 @@ export type Email_verification_tokensMinAggregateOutputType = {
   expires_at: Date | null
   used: boolean | null
   created_at: Date | null
+  used_at: Date | null
 }
 
 export type Email_verification_tokensMaxAggregateOutputType = {
@@ -52,6 +53,7 @@ export type Email_verification_tokensMaxAggregateOutputType = {
   expires_at: Date | null
   used: boolean | null
   created_at: Date | null
+  used_at: Date | null
 }
 
 export type Email_verification_tokensCountAggregateOutputType = {
@@ -61,6 +63,7 @@ export type Email_verification_tokensCountAggregateOutputType = {
   expires_at: number
   used: number
   created_at: number
+  used_at: number
   _all: number
 }
 
@@ -82,6 +85,7 @@ export type Email_verification_tokensMinAggregateInputType = {
   expires_at?: true
   used?: true
   created_at?: true
+  used_at?: true
 }
 
 export type Email_verification_tokensMaxAggregateInputType = {
@@ -91,6 +95,7 @@ export type Email_verification_tokensMaxAggregateInputType = {
   expires_at?: true
   used?: true
   created_at?: true
+  used_at?: true
 }
 
 export type Email_verification_tokensCountAggregateInputType = {
@@ -100,6 +105,7 @@ export type Email_verification_tokensCountAggregateInputType = {
   expires_at?: true
   used?: true
   created_at?: true
+  used_at?: true
   _all?: true
 }
 
@@ -196,6 +202,7 @@ export type Email_verification_tokensGroupByOutputType = {
   expires_at: Date
   used: boolean
   created_at: Date
+  used_at: Date | null
   _count: Email_verification_tokensCountAggregateOutputType | null
   _avg: Email_verification_tokensAvgAggregateOutputType | null
   _sum: Email_verification_tokensSumAggregateOutputType | null
@@ -228,6 +235,7 @@ export type email_verification_tokensWhereInput = {
   expires_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
   used?: Prisma.BoolFilter<"email_verification_tokens"> | boolean
   created_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
+  used_at?: Prisma.DateTimeNullableFilter<"email_verification_tokens"> | Date | string | null
   users?: Prisma.XOR<Prisma.UsersScalarRelationFilter, Prisma.usersWhereInput>
 }
 
@@ -238,6 +246,7 @@ export type email_verification_tokensOrderByWithRelationInput = {
   expires_at?: Prisma.SortOrder
   used?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
+  used_at?: Prisma.SortOrderInput | Prisma.SortOrder
   users?: Prisma.usersOrderByWithRelationInput
 }
 
@@ -251,6 +260,7 @@ export type email_verification_tokensWhereUniqueInput = Prisma.AtLeast<{
   expires_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
   used?: Prisma.BoolFilter<"email_verification_tokens"> | boolean
   created_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
+  used_at?: Prisma.DateTimeNullableFilter<"email_verification_tokens"> | Date | string | null
   users?: Prisma.XOR<Prisma.UsersScalarRelationFilter, Prisma.usersWhereInput>
 }, "id" | "token_hash">
 
@@ -261,6 +271,7 @@ export type email_verification_tokensOrderByWithAggregationInput = {
   expires_at?: Prisma.SortOrder
   used?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
+  used_at?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.email_verification_tokensCountOrderByAggregateInput
   _avg?: Prisma.email_verification_tokensAvgOrderByAggregateInput
   _max?: Prisma.email_verification_tokensMaxOrderByAggregateInput
@@ -278,6 +289,7 @@ export type email_verification_tokensScalarWhereWithAggregatesInput = {
   expires_at?: Prisma.DateTimeWithAggregatesFilter<"email_verification_tokens"> | Date | string
   used?: Prisma.BoolWithAggregatesFilter<"email_verification_tokens"> | boolean
   created_at?: Prisma.DateTimeWithAggregatesFilter<"email_verification_tokens"> | Date | string
+  used_at?: Prisma.DateTimeNullableWithAggregatesFilter<"email_verification_tokens"> | Date | string | null
 }
 
 export type email_verification_tokensCreateInput = {
@@ -285,6 +297,7 @@ export type email_verification_tokensCreateInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
   users: Prisma.usersCreateNestedOneWithoutEmail_verification_tokensInput
 }
 
@@ -295,6 +308,7 @@ export type email_verification_tokensUncheckedCreateInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
 }
 
 export type email_verification_tokensUpdateInput = {
@@ -302,6 +316,7 @@ export type email_verification_tokensUpdateInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   users?: Prisma.usersUpdateOneRequiredWithoutEmail_verification_tokensNestedInput
 }
 
@@ -312,6 +327,7 @@ export type email_verification_tokensUncheckedUpdateInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type email_verification_tokensCreateManyInput = {
@@ -321,6 +337,7 @@ export type email_verification_tokensCreateManyInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
 }
 
 export type email_verification_tokensUpdateManyMutationInput = {
@@ -328,6 +345,7 @@ export type email_verification_tokensUpdateManyMutationInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type email_verification_tokensUncheckedUpdateManyInput = {
@@ -337,6 +355,7 @@ export type email_verification_tokensUncheckedUpdateManyInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type email_verification_tokensCountOrderByAggregateInput = {
@@ -346,6 +365,7 @@ export type email_verification_tokensCountOrderByAggregateInput = {
   expires_at?: Prisma.SortOrder
   used?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
+  used_at?: Prisma.SortOrder
 }
 
 export type email_verification_tokensAvgOrderByAggregateInput = {
@@ -360,6 +380,7 @@ export type email_verification_tokensMaxOrderByAggregateInput = {
   expires_at?: Prisma.SortOrder
   used?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
+  used_at?: Prisma.SortOrder
 }
 
 export type email_verification_tokensMinOrderByAggregateInput = {
@@ -369,6 +390,7 @@ export type email_verification_tokensMinOrderByAggregateInput = {
   expires_at?: Prisma.SortOrder
   used?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
+  used_at?: Prisma.SortOrder
 }
 
 export type email_verification_tokensSumOrderByAggregateInput = {
@@ -433,6 +455,7 @@ export type email_verification_tokensCreateWithoutUsersInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
 }
 
 export type email_verification_tokensUncheckedCreateWithoutUsersInput = {
@@ -441,6 +464,7 @@ export type email_verification_tokensUncheckedCreateWithoutUsersInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
 }
 
 export type email_verification_tokensCreateOrConnectWithoutUsersInput = {
@@ -479,6 +503,7 @@ export type email_verification_tokensScalarWhereInput = {
   expires_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
   used?: Prisma.BoolFilter<"email_verification_tokens"> | boolean
   created_at?: Prisma.DateTimeFilter<"email_verification_tokens"> | Date | string
+  used_at?: Prisma.DateTimeNullableFilter<"email_verification_tokens"> | Date | string | null
 }
 
 export type email_verification_tokensCreateManyUsersInput = {
@@ -487,6 +512,7 @@ export type email_verification_tokensCreateManyUsersInput = {
   expires_at: Date | string
   used?: boolean
   created_at?: Date | string
+  used_at?: Date | string | null
 }
 
 export type email_verification_tokensUpdateWithoutUsersInput = {
@@ -494,6 +520,7 @@ export type email_verification_tokensUpdateWithoutUsersInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type email_verification_tokensUncheckedUpdateWithoutUsersInput = {
@@ -502,6 +529,7 @@ export type email_verification_tokensUncheckedUpdateWithoutUsersInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type email_verification_tokensUncheckedUpdateManyWithoutUsersInput = {
@@ -510,6 +538,7 @@ export type email_verification_tokensUncheckedUpdateManyWithoutUsersInput = {
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  used_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -521,6 +550,7 @@ export type email_verification_tokensSelect<ExtArgs extends runtime.Types.Extens
   expires_at?: boolean
   used?: boolean
   created_at?: boolean
+  used_at?: boolean
   users?: boolean | Prisma.usersDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["email_verification_tokens"]>
 
@@ -531,6 +561,7 @@ export type email_verification_tokensSelectCreateManyAndReturn<ExtArgs extends r
   expires_at?: boolean
   used?: boolean
   created_at?: boolean
+  used_at?: boolean
   users?: boolean | Prisma.usersDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["email_verification_tokens"]>
 
@@ -541,6 +572,7 @@ export type email_verification_tokensSelectUpdateManyAndReturn<ExtArgs extends r
   expires_at?: boolean
   used?: boolean
   created_at?: boolean
+  used_at?: boolean
   users?: boolean | Prisma.usersDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["email_verification_tokens"]>
 
@@ -551,9 +583,10 @@ export type email_verification_tokensSelectScalar = {
   expires_at?: boolean
   used?: boolean
   created_at?: boolean
+  used_at?: boolean
 }
 
-export type email_verification_tokensOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "user_id" | "token_hash" | "expires_at" | "used" | "created_at", ExtArgs["result"]["email_verification_tokens"]>
+export type email_verification_tokensOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "user_id" | "token_hash" | "expires_at" | "used" | "created_at" | "used_at", ExtArgs["result"]["email_verification_tokens"]>
 export type email_verification_tokensInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   users?: boolean | Prisma.usersDefaultArgs<ExtArgs>
 }
@@ -576,6 +609,7 @@ export type $email_verification_tokensPayload<ExtArgs extends runtime.Types.Exte
     expires_at: Date
     used: boolean
     created_at: Date
+    used_at: Date | null
   }, ExtArgs["result"]["email_verification_tokens"]>
   composites: {}
 }
@@ -1006,6 +1040,7 @@ export interface email_verification_tokensFieldRefs {
   readonly expires_at: Prisma.FieldRef<"email_verification_tokens", 'DateTime'>
   readonly used: Prisma.FieldRef<"email_verification_tokens", 'Boolean'>
   readonly created_at: Prisma.FieldRef<"email_verification_tokens", 'DateTime'>
+  readonly used_at: Prisma.FieldRef<"email_verification_tokens", 'DateTime'>
 }
     
 

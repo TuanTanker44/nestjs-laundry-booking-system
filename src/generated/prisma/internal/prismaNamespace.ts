@@ -2324,7 +2324,8 @@ export const Email_verification_tokensScalarFieldEnum = {
   token_hash: 'token_hash',
   expires_at: 'expires_at',
   used: 'used',
-  created_at: 'created_at'
+  created_at: 'created_at',
+  used_at: 'used_at'
 } as const
 
 export type Email_verification_tokensScalarFieldEnum = (typeof Email_verification_tokensScalarFieldEnum)[keyof typeof Email_verification_tokensScalarFieldEnum]
@@ -2398,7 +2399,8 @@ export const Password_reset_tokensScalarFieldEnum = {
   token_hash: 'token_hash',
   expires_at: 'expires_at',
   used: 'used',
-  created_at: 'created_at'
+  created_at: 'created_at',
+  used_at: 'used_at'
 } as const
 
 export type Password_reset_tokensScalarFieldEnum = (typeof Password_reset_tokensScalarFieldEnum)[keyof typeof Password_reset_tokensScalarFieldEnum]
@@ -2447,7 +2449,8 @@ export const Refresh_tokensScalarFieldEnum = {
   token_hash: 'token_hash',
   expires_at: 'expires_at',
   revoked: 'revoked',
-  created_at: 'created_at'
+  created_at: 'created_at',
+  revoked_at: 'revoked_at'
 } as const
 
 export type Refresh_tokensScalarFieldEnum = (typeof Refresh_tokensScalarFieldEnum)[keyof typeof Refresh_tokensScalarFieldEnum]
