@@ -8,6 +8,7 @@ import { PasswordResetTokenModule } from "./password_reset_token/password_reset_
 import { EmailVerificationTokenModule } from "./email_verification_token/email_verification_token.module.js";
 import { JwtAuthGuard } from "./guards/jwt.guard.js";
 import { RoleGuard } from "./guards/role.guard.js";
+import { JwtStrategy } from "./strategies/jwt.strategy.js";
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { RoleGuard } from "./guards/role.guard.js";
       EmailVerificationTokenModule,
     ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, RoleGuard],
+  providers: [AuthService, JwtAuthGuard, RoleGuard, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

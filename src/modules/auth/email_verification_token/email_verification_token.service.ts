@@ -47,21 +47,17 @@ export class EmailVerificationTokenService {
   }
 
   async findByToken(token: string) {
-    const tokenHash = this.hashToken(token);
-
     return this.prisma.email_verification_tokens.findUnique({
       where: {
-        token_hash: tokenHash,
+        token_hash: token,
       },
     });
   }
 
   async markAsUsed(token: string) {
-    const tokenHash = this.hashToken(token);
-
     return this.prisma.email_verification_tokens.update({
       where: {
-        token_hash: tokenHash,
+        token_hash: token,
       },
       data: {
         used: true,

@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import bcrypt from "bcrypt";
 import { PrismaService } from "../../prisma/prisma.service.js";
-import { CreateUserDto } from "./dto/create_user.dto.js";
+import { CreateUserDto } from "./dto/create-user.dto.js";
+import { AdminUpdateUserDto, UpdateProfileDto } from "./dto/update-user.dto.js";
 
 @Injectable()
 export class UserService {
@@ -39,12 +40,23 @@ export class UserService {
     });
   }
 
-  async update(id: number, dto: Partial<CreateUserDto>) {
+  async update(id: number, dto: AdminUpdateUserDto | UpdateProfileDto) {
     return this.prisma.users.update({
       where: {
         id,
       },
       data: dto,
+      select: {
+      id: true,
+      full_name: true,
+      email: true,
+      phone: true,
+      role: true,
+      avatar_url: true,
+      status: true,
+      email_verified_at: true,
+      updated_at: true,
+    },
     });
   }
 

@@ -5,5 +5,5 @@ export class VerifyEmailDto {
   @Matches(/^[a-fA-F0-9]{64}$/, {
     message: 'token must be a 64-character hexadecimal string',
   })
-  emailVerificationToken: string;
+  token: string;
 }

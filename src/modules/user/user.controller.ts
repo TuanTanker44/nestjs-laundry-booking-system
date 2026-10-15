@@ -5,17 +5,31 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard.js';
 import { RoleGuard } from '../auth/guards/role.guard.js';
 import { Roles } from '../auth/decorators/role.decorator.js';
 import { UserService } from './user.service.js';
-import { CreateUserDto } from './dto/create_user.dto.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
 
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
+  
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: Request) {
+    const userId = req.user?.id;
+
+    if (userId === undefined) {
+      throw new Error('Authenticated user not found');
+    }
+
+    return this.userService.findById(userId);
+  }
 
   @Get()
   async findAll() {

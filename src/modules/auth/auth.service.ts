@@ -24,6 +24,11 @@ interface JwtPayload {
   role: string;
 }
 
+export interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -142,6 +147,12 @@ export class AuthService {
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+      },
     };
   }
 
@@ -238,6 +249,13 @@ export class AuthService {
 
     await this.emailVerificationTokenService
       .markAsUsed(token);
+    
+    await this.userService.update(
+      verificationToken.user_id,
+      {
+        email_verified_at: new Date(),
+      },
+    );
 
     return {
       message: "Email verified successfully",
@@ -246,17 +264,19 @@ export class AuthService {
 
   async resendVerification(email: string) {
     const user = await this.userService.findByEmail(email);
+
     if (!user) {
-      throw new UnauthorizedException(
-        "User not found",
-      );
+      throw new UnauthorizedException('User not found');
     }
 
-    const token = this.emailVerificationTokenService.generateVerificationToken();
+    if (user.email_verified_at) {
+      throw new ConflictException('Email has already been verified');
+    }
 
-    const expiresAt = new Date(
-      Date.now() + 15 * 60 * 1000,
-    );
+    const token =
+      this.emailVerificationTokenService.generateVerificationToken();
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await this.emailVerificationTokenService.create(
       user.id,
@@ -264,11 +284,10 @@ export class AuthService {
       expiresAt,
     );
 
-    // TODO: gửi email verification
+    // TODO: Gửi email verification
 
     return {
-      message:
-        "Verification email has been sent",
+      message: 'Verification email has been sent',
     };
   }
 
@@ -331,22 +350,9 @@ export class AuthService {
       );
     }
 
-    const SALT_ROUNDS = process.env.SAlT_ROUNDS
-    if (!SALT_ROUNDS) {
-        throw new InternalServerErrorException(
-            "PASSWORD_RESET_TOKEN_SECRET is not configured",
-        );
-    }
-
-    const passwordHash =
-      await bcrypt.hash(
-        newPassword,
-        parseInt(SALT_ROUNDS),
-      );
-
     await this.userService.changePassword(
       resetToken.user_id,
-      passwordHash,
+      newPassword,
     );
 
     await this.passwordResetTokenService
