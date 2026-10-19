@@ -122,3 +122,25 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Quy tắc đặt Redis key
+
+Quy ước:
+<app>:<env>:<module>:<purpose>:<identifier>:<window>
+
+Ví dụ:
+Mục đích Redis key mẫu
+Giới hạn login theo IP laundry:dev:auth:rate:login:ip:<hash>:60s
+Giới hạn login theo email laundry:dev:auth:rate:login:account:<hash>:60s
+Giới hạn gửi email xác minh laundry:dev:auth:rate:verify-email:ip:<hash>:900s
+Giới hạn quên mật khẩu laundry:dev:auth:rate:forgot-password:account:<hash>:900s
+Các nguyên tắc chính:
+
+- laundry: tên ứng dụng.
+- dev, staging, prod: môi trường, tránh xung đột key giữa các môi trường nếu dùng chung Redis.
+- auth:rate: nhóm nghiệp vụ và mục đích sử dụng.
+- login, forgot-password: endpoint hoặc hành động.
+- ip, account: loại định danh.
+- <hash>: giá trị định danh đã băm, không phải dữ liệu gốc.
+- 60s, 900s: cửa sổ giới hạn, giúp key dễ quan sát.
+Không nhất thiết phải nhúng thời lượng cửa sổ vào key nếu bạn dùng fixed window với TTL; đây là lựa chọn để key dễ đọc và dễ debug. Quan trọng nhất là thống nhất quy tắc trên toàn hệ thống.

@@ -76,4 +76,30 @@ export class RedisService implements OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await this.redis.quit();
   }
+
+  async incrementWithTtl(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<number> {
+    if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0) {
+      throw new Error('ttlSeconds must be a positive integer');
+    }
+
+    const result = await this.redis.eval(
+      `
+        local count = redis.call('INCR', KEYS[1])
+
+        if count == 1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[1])
+        end
+
+        return count
+      `,
+      1,
+      key,
+      ttlSeconds,
+    );
+
+    return Number(result);
+  }
 }

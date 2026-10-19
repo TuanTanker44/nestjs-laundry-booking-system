@@ -9,6 +9,7 @@ import { EmailVerificationTokenModule } from "./email_verification_token/email_v
 import { JwtAuthGuard } from "./guards/jwt.guard.js";
 import { RoleGuard } from "./guards/role.guard.js";
 import { JwtStrategy } from "./strategies/jwt.strategy.js";
+import { AuthRateLimitGuard } from "./guards/rate-limit.guard.js";
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { JwtStrategy } from "./strategies/jwt.strategy.js";
       EmailVerificationTokenModule,
     ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, RoleGuard, JwtStrategy],
+  providers: [AuthService, JwtAuthGuard, RoleGuard, AuthRateLimitGuard, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}
