@@ -6,6 +6,9 @@
 # TypeScript build cache
 *.tsbuildinfo
 
+# Prisma generated client (sinh bằng `pnpm prisma:generate`)
+/src/generated
+
 # Logs
 logs
 *.log
