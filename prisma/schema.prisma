@@ -21,7 +21,7 @@ model addresses {
   longitude                                        Decimal?            @db.Decimal(10, 7)
   is_default                                       Boolean             @default(false)
   created_at                                       DateTime            @default(now()) @db.Timestamp(6)
-  updated_at                                       DateTime            @default(now()) @db.Timestamp(6)
+  updated_at                                       DateTime            @default(now()) @updatedAt @db.Timestamp(6)
   users                                            users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_addresses_user")
   bookings_bookings_delivery_address_idToaddresses bookings[]          @relation("bookings_delivery_address_idToaddresses")
   bookings_bookings_pickup_address_idToaddresses   bookings[]          @relation("bookings_pickup_address_idToaddresses")
@@ -86,7 +86,7 @@ model bookings {
   cancelled_by                                      Int?
   cancellation_reason                               String?              @db.VarChar(255)
   created_at                                        DateTime             @default(now()) @db.Timestamp(6)
-  updated_at                                        DateTime             @default(now()) @db.Timestamp(6)
+  updated_at                                        DateTime             @default(now()) @updatedAt @db.Timestamp(6)
   booking_items                                     booking_items[]
   users_bookings_cancelled_byTousers                users?               @relation("bookings_cancelled_byTousers", fields: [cancelled_by], references: [id], onUpdate: NoAction, map: "fk_bookings_cancelled_by")
   users_bookings_customer_idTousers                 users                @relation("bookings_customer_idTousers", fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_bookings_customer")
@@ -122,7 +122,7 @@ model complaints {
   resolved_by                         Int?
   resolved_at                         DateTime?              @db.Timestamp(6)
   created_at                          DateTime               @default(now()) @db.Timestamp(6)
-  updated_at                          DateTime               @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime               @default(now()) @updatedAt @db.Timestamp(6)
   bookings                            bookings               @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_complaints_booking")
   booking_items                       booking_items?         @relation(fields: [booking_item_id], references: [id], onUpdate: NoAction, map: "fk_complaints_booking_item")
   users_complaints_customer_idTousers users                  @relation("complaints_customer_idTousers", fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_complaints_customer")
@@ -146,7 +146,7 @@ model customer_profiles {
   date_of_birth                   DateTime?                                              @db.Date
   gender                          customer_profiles_gender_enum?
   created_at                      DateTime                                               @default(now()) @db.Timestamp(6)
-  updated_at                      DateTime                                               @default(now()) @db.Timestamp(6)
+  updated_at                      DateTime                                               @default(now()) @updatedAt @db.Timestamp(6)
   addresses                       addresses?                                             @relation(fields: [default_address_id], references: [id], onUpdate: NoAction, map: "fk_customer_profiles_address")
   services                        services?                                              @relation(fields: [preferred_service_id], references: [id], onUpdate: NoAction, map: "fk_customer_profiles_service")
   laundry_stores                  laundry_stores?                                        @relation(fields: [preferred_store_id], references: [id], onUpdate: NoAction, map: "fk_customer_profiles_store")
@@ -166,7 +166,7 @@ model delivery_trips {
   proof_image_url String?                       @db.VarChar(255)
   note            String?                       @db.VarChar(255)
   created_at      DateTime                      @default(now()) @db.Timestamp(6)
-  updated_at      DateTime                      @default(now()) @db.Timestamp(6)
+  updated_at      DateTime                      @default(now()) @updatedAt @db.Timestamp(6)
   addresses       addresses                     @relation(fields: [address_id], references: [id], onUpdate: NoAction, map: "fk_delivery_trips_address")
   bookings        bookings                      @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_delivery_trips_booking")
   users           users?                        @relation(fields: [shipper_id], references: [id], onUpdate: NoAction, map: "fk_delivery_trips_shipper")
@@ -203,7 +203,7 @@ model laundry_stores {
   status                      laundry_stores_status_enum  @default(active)
   created_by                  Int?
   created_at                  DateTime                    @default(now()) @db.Timestamp(6)
-  updated_at                  DateTime                    @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime                    @default(now()) @updatedAt @db.Timestamp(6)
   bookings                    bookings[]
   customer_profiles           customer_profiles[]
   users                       users?                      @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_laundry_stores_created_by")
@@ -240,7 +240,7 @@ model machines {
   capacity_kg        Decimal              @default(7.00) @db.Decimal(6, 2)
   status             machines_status_enum @default(idle)
   created_at         DateTime             @default(now()) @db.Timestamp(6)
-  updated_at         DateTime             @default(now()) @db.Timestamp(6)
+  updated_at         DateTime             @default(now()) @updatedAt @db.Timestamp(6)
   machine_usage_logs machine_usage_logs[]
   laundry_stores     laundry_stores       @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_machines_store")
 
@@ -291,7 +291,7 @@ model payments {
   refunded_at             DateTime?                  @db.Timestamp(6)
   raw_response            Json?
   created_at              DateTime                   @default(now()) @db.Timestamp(6)
-  updated_at              DateTime                   @default(now()) @db.Timestamp(6)
+  updated_at              DateTime                   @default(now()) @updatedAt @db.Timestamp(6)
   bookings                bookings                   @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payments_booking")
 
   @@index([booking_id], map: "idx_payments_booking")
@@ -310,7 +310,7 @@ model promotions {
   status        promotions_status_enum        @default(active)
   created_by    Int?
   created_at    DateTime                      @default(now()) @db.Timestamp(6)
-  updated_at    DateTime                      @default(now()) @db.Timestamp(6)
+  updated_at    DateTime                      @default(now()) @updatedAt @db.Timestamp(6)
   bookings      bookings[]
   users         users?                        @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_promotions_created_by")
 }
@@ -354,7 +354,7 @@ model services {
   estimated_turnaround_hours Int                        @default(24)
   status                     services_status_enum       @default(active)
   created_at                 DateTime                   @default(now()) @db.Timestamp(6)
-  updated_at                 DateTime                   @default(now()) @db.Timestamp(6)
+  updated_at                 DateTime                   @default(now()) @updatedAt @db.Timestamp(6)
   bookings                   bookings[]
   customer_profiles          customer_profiles[]
   laundry_stores             laundry_stores?            @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_services_store")
@@ -413,7 +413,7 @@ model users {
   status                                   users_status_enum           @default(active)
   email_verified_at                        DateTime?                   @db.Timestamp(6)
   created_at                               DateTime                    @default(now()) @db.Timestamp(6)
-  updated_at                               DateTime                    @default(now()) @db.Timestamp(6)
+  updated_at                               DateTime                    @default(now()) @updatedAt @db.Timestamp(6)
   addresses                                addresses[]
   audit_logs                               audit_logs[]
   bookings_bookings_cancelled_byTousers    bookings[]                  @relation("bookings_cancelled_byTousers")
