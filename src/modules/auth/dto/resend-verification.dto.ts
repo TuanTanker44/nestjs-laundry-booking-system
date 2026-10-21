@@ -1,7 +1,9 @@
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsEmail, MaxLength } from 'class-validator';
+import { NormalizeEmail } from '../../../common/decorators/normalize-email.decorator.js';
 
 export class ResendVerificationDto {
+  @NormalizeEmail()
   @IsEmail()
-  @IsNotEmpty()
+  @MaxLength(150)
   email: string;
 }

@@ -1,8 +1,9 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
-  BadRequestException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { createHmac } from 'node:crypto';
@@ -51,8 +52,9 @@ export class AuthRateLimitGuard implements CanActivate {
       );
 
       if (count > options.limit) {
-        throw new BadRequestException(
+        throw new HttpException(
           options.message ?? 'Too many requests. Please try again later.',
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
     }

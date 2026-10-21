@@ -5,22 +5,15 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
-import { ThrottlerModule } from '@nestjs/throttler';
 import { AddressModule } from './modules/address/address.module.js';
+import { validateEnv } from './config/env.validation.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-    }),
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 60000,
-          limit: 10,
-        },
-      ],
+      validate: validateEnv,
     }),
     PrismaModule,
     RedisModule,

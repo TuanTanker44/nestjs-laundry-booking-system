@@ -1,17 +1,29 @@
-import { IsEmail, IsNotEmpty, IsString, Max, Min } from "class-validator";
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { NormalizeEmail } from '../../../common/decorators/normalize-email.decorator.js';
+import { PASSWORD_MESSAGE, PASSWORD_REGEX } from '../auth.constants.js';
 
 export class RegisterDto {
-  @IsNotEmpty()  
+  @NormalizeEmail()
   @IsEmail()
+  @MaxLength(150)
   email: string;
 
-  @IsNotEmpty()  
   @IsString()
-  @Min(8)
-  @Max(72)
+  @MinLength(8)
+  @MaxLength(72)
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password: string;
 
   @IsString()
-  @Max(36)
+  @IsNotEmpty()
+  @MinLength(2)
+  @MaxLength(100)
   name: string;
 }

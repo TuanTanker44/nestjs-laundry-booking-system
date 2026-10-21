@@ -1,8 +1,8 @@
 
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -13,6 +13,8 @@ import { UpdateAddressDto } from './dto/update-address.dto.js';
 
 @Injectable()
 export class AddressService {
+  private readonly logger = new Logger(AddressService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mapsService: MapsService,
@@ -58,7 +60,13 @@ export class AddressService {
         latitude: coordinates.lat,
         longitude: coordinates.lng,
       };
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Geocoding failed for "${this.buildFullAddress(data)}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+
       return {
         latitude: null,
         longitude: null,
@@ -99,7 +107,7 @@ export class AddressService {
           city: dto.city,
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
-          is_default: dto.is_default ?? false,
+          is_default: isDefault,
         },
       });
     });

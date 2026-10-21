@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  HttpCode,
+  HttpStatus,
   Post,
   Req,
   Res,
@@ -16,18 +18,42 @@ import { VerifyEmailDto } from './dto/verify-email.dto.js';
 import { ResendVerificationDto } from './dto/resend-verification.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import {
+  REFRESH_COOKIE_NAME,
+  REFRESH_TOKEN_TTL_MS,
+  refreshCookieOptions,
+} from './auth.constants.js';
 
 import { RateLimit } from './decorators/rate-limit.decorator.js';
 import { AuthRateLimitGuard } from './guards/rate-limit.guard.js';
 
 @Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
   ) {}
 
+  private setRefreshCookie(res: Response, token: string) {
+    res.cookie(REFRESH_COOKIE_NAME, token, {
+      ...refreshCookieOptions(),
+      maxAge: REFRESH_TOKEN_TTL_MS,
+    });
+  }
+
+  private getRefreshToken(req: Request): string {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+    if (!refreshToken) {
+      throw new UnauthorizedException(
+        'Refresh token not found in cookies',
+      );
+    }
+
+    return refreshToken;
+  }
+
   @Post('register')
-  @UseGuards(AuthRateLimitGuard)
   @RateLimit({
     limit: 5,
     windowSeconds: 900,
@@ -43,7 +69,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 5,
     windowSeconds: 60,
@@ -59,13 +85,7 @@ export class AuthController {
       dto.password,
     );
 
-    res.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    this.setRefreshCookie(res, result.refresh_token);
 
     return {
       access_token: result.access_token,
@@ -74,7 +94,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 10,
     windowSeconds: 60,
@@ -85,28 +105,15 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies?.refresh_token;
+    const result = await this.authService.logout(this.getRefreshToken(req));
 
-    if (!refreshToken) {
-      throw new UnauthorizedException(
-        'Refresh token not found in cookies',
-      );
-    }
-
-    const result = await this.authService.logout(refreshToken);
-
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-    });
+    res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions());
 
     return result;
   }
 
   @Post('refresh')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 10,
     windowSeconds: 60,
@@ -117,25 +124,9 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies?.refresh_token;
+    const result = await this.authService.refresh(this.getRefreshToken(req));
 
-    if (!refreshToken) {
-      throw new UnauthorizedException(
-        'Refresh token not found in cookies',
-      );
-    }
-
-    const result = await this.authService.refresh(refreshToken);
-
-    if (result.refresh_token) {
-      res.cookie('refresh_token', result.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/api/auth',
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      });
-    }
+    this.setRefreshCookie(res, result.refresh_token);
 
     return {
       access_token: result.access_token,
@@ -143,7 +134,7 @@ export class AuthController {
   }
 
   @Post('verify-email')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 5,
     windowSeconds: 900,
@@ -155,7 +146,7 @@ export class AuthController {
   }
 
   @Post('resend-verification')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 3,
     windowSeconds: 900,
@@ -167,7 +158,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 3,
     windowSeconds: 900,
@@ -179,7 +170,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
   @RateLimit({
     limit: 5,
     windowSeconds: 900,

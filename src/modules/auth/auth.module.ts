@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { AuthService } from "./auth.service.js";
 import { AuthController } from "./auth.controller.js";
@@ -13,17 +14,20 @@ import { AuthRateLimitGuard } from "./guards/rate-limit.guard.js";
 
 @Module({
   imports: [
-    JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET || 'tuantapcodebackend',
-      signOptions: {
-        expiresIn: '1d',
-      },
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        signOptions: {
+          expiresIn: config.get('JWT_ACCESS_EXPIRES_IN') ?? '15m',
+        },
+      }),
     }),
-      UserModule,
-      RefreshTokenModule,
-      PasswordResetTokenModule,
-      EmailVerificationTokenModule,
-    ],
+    UserModule,
+    RefreshTokenModule,
+    PasswordResetTokenModule,
+    EmailVerificationTokenModule,
+  ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RoleGuard, AuthRateLimitGuard, JwtStrategy],
   exports: [AuthService],

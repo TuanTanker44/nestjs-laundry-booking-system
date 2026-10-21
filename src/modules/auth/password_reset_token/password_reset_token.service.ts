@@ -48,21 +48,28 @@ export class PasswordResetTokenService {
   async findByToken(token: string) {
     return this.prisma.password_reset_tokens.findUnique({
       where: {
-        token_hash: token,
+        token_hash: this.hashToken(token),
       },
     });
   }
 
-  async markAsUsed(token: string) {
-    return this.prisma.password_reset_tokens.update({
+  /**
+   * Đánh dấu token đã dùng một cách atomic.
+   * Trả về false nếu token đã bị dùng trước đó.
+   */
+  async markAsUsed(token: string): Promise<boolean> {
+    const { count } = await this.prisma.password_reset_tokens.updateMany({
       where: {
-        token_hash: token,
+        token_hash: this.hashToken(token),
+        used_at: null,
       },
       data: {
         used: true,
         used_at: new Date(),
       },
     });
+
+    return count > 0;
   }
 
   async deleteExpired() {

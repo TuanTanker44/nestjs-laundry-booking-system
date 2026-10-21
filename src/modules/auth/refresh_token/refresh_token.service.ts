@@ -55,18 +55,24 @@ export class RefreshTokenService {
     });
   }
 
-  async revoke(token: string) {
-    const tokenHash = this.hashToken(token);
-
-    return this.prisma.refresh_tokens.update({
+  /**
+   * Thu hồi refresh token một cách atomic.
+   * Trả về false nếu token không tồn tại hoặc đã bị thu hồi trước đó
+   * (không ném lỗi Prisma P2025 như `update`).
+   */
+  async revoke(token: string): Promise<boolean> {
+    const { count } = await this.prisma.refresh_tokens.updateMany({
       where: {
-        token_hash: tokenHash,
+        token_hash: this.hashToken(token),
+        revoked_at: null,
       },
       data: {
         revoked: true,
         revoked_at: new Date(),
       },
     });
+
+    return count > 0;
   }
 
   async revokeAllByUserId(userId: number) {

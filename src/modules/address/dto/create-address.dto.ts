@@ -1,7 +1,5 @@
 import {
   IsBoolean,
-  IsLatitude,
-  IsLongitude,
   IsOptional,
   IsString,
   Matches,
@@ -47,13 +45,6 @@ export class CreateAddressDto {
   @MaxLength(100)
   city?: string;
 
-  @IsOptional()
-  @IsLatitude()
-  latitude?: number;
-
-  @IsOptional()
-  @IsLongitude()
-  longitude?: number;
 
   @IsOptional()
   @IsBoolean()

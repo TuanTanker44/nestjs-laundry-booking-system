@@ -1,17 +1,50 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import bcrypt from "bcrypt";
 import { PrismaService } from "../../prisma/prisma.service.js";
-import { CreateUserDto } from "./dto/create-user.dto.js";
+import type { CreateUserDto } from "./dto/create-user.dto.js";
 import { AdminUpdateUserDto, UpdateProfileDto } from "./dto/update-user.dto.js";
+
+const SAFE_USER_SELECT = {
+  id: true,
+  full_name: true,
+  email: true,
+  phone: true,
+  role: true,
+  avatar_url: true,
+  status: true,
+  email_verified_at: true,
+  created_at: true,
+  updated_at: true,
+} as const;
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) { }
-    
-  async findAll() {
-    return this.prisma.users.findMany();
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) { }
+
+  hashPassword(password: string) {
+    const saltRounds = parseInt(
+      this.config.get<string>("SALT_ROUNDS") ?? "10",
+      10,
+    );
+
+    return bcrypt.hash(password, saltRounds);
   }
 
+  async findAll() {
+    return this.prisma.users.findMany({
+      select: SAFE_USER_SELECT,
+      orderBy: { id: "asc" },
+    });
+  }
+
+  /**
+   * Trả về user đầy đủ (kèm password_hash) — CHỈ dùng nội bộ (AuthService),
+   * không được trả thẳng ra API. Dùng getProfile() cho response.
+   */
   async findById(id: number) {
     return this.prisma.users.findUnique({
       where: {
@@ -20,6 +53,20 @@ export class UserService {
     });
   }
 
+  async getProfile(id: number) {
+    const user = await this.prisma.users.findUnique({
+      where: { id },
+      select: SAFE_USER_SELECT,
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    return user;
+  }
+
+  /** Như findById: chỉ dùng nội bộ vì có password_hash. */
   async findByEmail(email: string) {
     return this.prisma.users.findUnique({
       where: {
@@ -46,17 +93,7 @@ export class UserService {
         id,
       },
       data: dto,
-      select: {
-      id: true,
-      full_name: true,
-      email: true,
-      phone: true,
-      role: true,
-      avatar_url: true,
-      status: true,
-      email_verified_at: true,
-      updated_at: true,
-    },
+      select: SAFE_USER_SELECT,
     });
   }
 
@@ -80,12 +117,7 @@ export class UserService {
   }
 
   async changePassword(id: number, newPassword: string) {
-    const SALT_ROUNDS = process.env.SALT_ROUNDS;
-    if (!SALT_ROUNDS) {
-      throw new Error("SALT_ROUNDS is not configured");
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, parseInt(SALT_ROUNDS));
+    const hashedPassword = await this.hashPassword(newPassword);
 
     return this.prisma.users.update({
       where: {
@@ -94,6 +126,7 @@ export class UserService {
       data: {
         password_hash: hashedPassword,
       },
+      select: { id: true },
     });
   }
 }

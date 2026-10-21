@@ -1,13 +1,14 @@
-import { IsEmail, IsNotEmpty, IsString, Max, Min } from "class-validator";
+import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { NormalizeEmail } from '../../../common/decorators/normalize-email.decorator.js';
 
 export class LoginDto {
-  @IsNotEmpty()  
+  @NormalizeEmail()
   @IsEmail()
+  @MaxLength(150)
   email: string;
 
-  @IsNotEmpty()
   @IsString()
-  @Min(8)
-  @Max(72)
+  @IsNotEmpty()
+  @MaxLength(72)
   password: string;
 }

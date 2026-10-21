@@ -7,19 +7,15 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Req,
-  Res,
   UseGuards,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
 
 import { AddressService } from './address.service.js';
 import { CreateAddressDto } from './dto/create-address.dto.js';
 import { UpdateAddressDto } from './dto/update-address.dto.js';
 
 import { JwtAuthGuard } from '../auth/guards/jwt.guard.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 
 @Controller('addresses')
 @UseGuards(JwtAuthGuard)
@@ -31,104 +27,71 @@ export class AddressController {
   // POST /addresses
   @Post()
   async create(
-    @Req() req: Request,
-    @Res() res: Response,
+    @CurrentUser('id') userId: number,
     @Body() dto: CreateAddressDto,
   ) {
-    const address = await this.addressService.create(
-      req.user?.id as number,
-      dto,
-    );
+    const address = await this.addressService.create(userId, dto);
 
-    return res.status(HttpStatus.CREATED).json({
+    return {
       message: 'Address created successfully',
       data: address,
-    });
+    };
   }
 
   // GET /addresses
   @Get()
-  async findAll(
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    const addresses = await this.addressService.findAllByUser(
-      req.user?.id as number,
-    );
+  async findAll(@CurrentUser('id') userId: number) {
+    const addresses = await this.addressService.findAllByUser(userId);
 
-    return res.status(HttpStatus.OK).json({
-      data: addresses,
-    });
+    return { data: addresses };
   }
 
   // GET /addresses/:id
   @Get(':id')
   async findOne(
-    @Req() req: Request,
-    @Res() res: Response,
+    @CurrentUser('id') userId: number,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const address = await this.addressService.findOneByUser(
-      req.user?.id as number,
-      id,
-    );
+    const address = await this.addressService.findOneByUser(userId, id);
 
-    return res.status(HttpStatus.OK).json({
-      data: address,
-    });
+    return { data: address };
   }
 
   // PATCH /addresses/:id
   @Patch(':id')
   async update(
-    @Req() req: Request,
-    @Res() res: Response,
+    @CurrentUser('id') userId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAddressDto,
   ) {
-    const address = await this.addressService.update(
-      req.user?.id as number,
-      id,
-      dto,
-    );
+    const address = await this.addressService.update(userId, id, dto);
 
-    return res.status(HttpStatus.OK).json({
+    return {
       message: 'Address updated successfully',
       data: address,
-    });
+    };
   }
 
   // PATCH /addresses/:id/default
   @Patch(':id/default')
   async setDefault(
-    @Req() req: Request,
-    @Res() res: Response,
+    @CurrentUser('id') userId: number,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const address = await this.addressService.setDefault(
-      req.user?.id as number,
-      id,
-    );
+    const address = await this.addressService.setDefault(userId, id);
 
-    return res.status(HttpStatus.OK).json({
+    return {
       message: 'Default address updated successfully',
       data: address,
-    });
+    };
   }
 
   // DELETE /addresses/:id
   @Delete(':id')
-  @HttpCode(HttpStatus.OK)
   async remove(
-    @Req() req: Request,
-    @Res() res: Response,
+    @CurrentUser('id') userId: number,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const result = await this.addressService.remove(
-      req.user?.id as number,
-      id,
-    );
-
-    return res.status(HttpStatus.OK).json(result);
+    return this.addressService.remove(userId, id);
   }
 }

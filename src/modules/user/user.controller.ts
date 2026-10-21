@@ -4,58 +4,47 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Post,
-  Req,
+  Patch,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard.js';
 import { RoleGuard } from '../auth/guards/role.guard.js';
 import { Roles } from '../auth/decorators/role.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { UserService } from './user.service.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
+import { UpdateProfileDto } from './dto/update-user.dto.js';
 
 @Controller('users')
+@UseGuards(JwtAuthGuard, RoleGuard)
 export class UserController {
   constructor(private readonly userService: UserService) { }
-  
+
+  // GET /users/me
   @Get('me')
-  @UseGuards(JwtAuthGuard)
-  async getMe(@Req() req: Request) {
-    const userId = req.user?.id;
-
-    if (userId === undefined) {
-      throw new Error('Authenticated user not found');
-    }
-
-    return this.userService.findById(userId);
+  getMe(@CurrentUser('id') userId: number) {
+    return this.userService.getProfile(userId);
   }
 
+  // PATCH /users/me — user self-update
+  @Patch('me')
+  updateMe(
+    @CurrentUser('id') userId: number,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.userService.update(userId, dto);
+  }
+
+  // GET /users — admin
   @Get()
-  async findAll() {
+  @Roles('admin')
+  findAll() {
     return this.userService.findAll();
   }
 
+  // GET /users/:id — admin
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
   @Roles('admin')
-  async findById(
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.userService.findById(id);
-  }
-
-  @Get('email/:email')
-  async findByEmail(
-    @Param('email') email: string,
-  ) {
-    return this.userService.findByEmail(email);
-  }
-
-  @Post()
-  async create(
-    @Body() dto: CreateUserDto,
-  ) {
-    return this.userService.create(dto);
+  findById(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.getProfile(id);
   }
 }

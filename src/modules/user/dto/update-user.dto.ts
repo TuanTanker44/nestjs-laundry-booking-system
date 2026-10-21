@@ -2,11 +2,12 @@ import {
   IsDate,
   IsEmail,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 import {
@@ -17,12 +18,16 @@ import {
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
+  @MinLength(2)
   @MaxLength(100)
   full_name?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(20)
+  @Matches(/^[0-9+\-().\s]+$/, {
+    message: 'phone must contain a valid phone number format',
+  })
   phone?: string | null;
 
   @IsOptional()
@@ -36,11 +41,6 @@ export class AdminUpdateUserDto extends UpdateProfileDto {
   @IsEmail()
   @MaxLength(150)
   email?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  password_hash?: string;
 
   @IsOptional()
   @IsEnum(users_role_enum)
