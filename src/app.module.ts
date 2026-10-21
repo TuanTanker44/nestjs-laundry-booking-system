@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { AddressModule } from './modules/address/address.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     PrismaModule,
     RedisModule,
     AuthModule,
+    AddressModule,
   ],
   controllers: [AppController],
   providers: [AppService],
