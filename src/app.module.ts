@@ -7,6 +7,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AddressModule } from './modules/address/address.module.js';
 import { StoreModule } from './modules/store/store.module.js';
+import { StoreScheduleModule } from './modules/store-schedule/store-schedule.module.js';
 import { validateEnv } from './config/env.validation.js';
 
 @Module({
@@ -21,6 +22,7 @@ import { validateEnv } from './config/env.validation.js';
     AuthModule,
     AddressModule,
     StoreModule,
+    StoreScheduleModule,
   ],
   controllers: [AppController],
   providers: [AppService],
