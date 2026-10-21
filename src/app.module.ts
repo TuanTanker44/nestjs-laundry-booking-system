@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AddressModule } from './modules/address/address.module.js';
+import { StoreModule } from './modules/store/store.module.js';
 import { validateEnv } from './config/env.validation.js';
 
 @Module({
@@ -19,6 +20,7 @@ import { validateEnv } from './config/env.validation.js';
     RedisModule,
     AuthModule,
     AddressModule,
+    StoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],
