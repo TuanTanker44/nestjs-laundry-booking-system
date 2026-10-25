@@ -68,6 +68,9 @@ model bookings {
   customer_id                                       Int
   store_id                                          Int
   service_id                                        Int
+  service_name                                      String               @db.VarChar(100)
+  pricing_unit                                      services_pricing_unit_enum
+  unit_price                                        Decimal              @db.Decimal(10, 2)
   in_store                                          Boolean              @default(true)
   pickup_address_id                                 Int
   delivery_address_id                               Int
