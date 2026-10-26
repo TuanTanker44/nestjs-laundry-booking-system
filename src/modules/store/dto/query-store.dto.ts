@@ -49,3 +49,19 @@ export class QueryStoreDto {
   @IsLongitude()
   lng?: number;
 }
+
+export class TopSellingAreaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  ward?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  district?: string;
+
+  @IsString()
+  @MaxLength(100)
+  city!: string;
+}

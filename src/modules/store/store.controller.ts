@@ -18,7 +18,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { StoreService } from './store.service.js';
 import { CreateStoreDto } from './dto/create-store.dto.js';
 import { UpdateStoreDto } from './dto/update-store.dto.js';
-import { QueryStoreDto } from './dto/query-store.dto.js';
+import { QueryStoreDto, TopSellingAreaDto } from './dto/query-store.dto.js';
 import { AssignStaffDto } from './dto/assign-staff.dto.js';
 
 @Controller('stores')
@@ -41,6 +41,18 @@ export class StoreController {
     @Query() query: QueryStoreDto,
   ) {
     return this.storeService.findAllManageable(user, query);
+  }
+
+  @Get('top-selling')
+  async getTopSellingStores() {
+    return this.storeService.getTopSellingStores();
+  }
+
+  @Post('top-selling/area')
+  getTopSellingStoresByArea(
+    @Body() payload: TopSellingAreaDto,
+  ) {
+    return this.storeService.getTopSellingStoresByArea(payload);
   }
 
   // GET /stores/:id  (public)

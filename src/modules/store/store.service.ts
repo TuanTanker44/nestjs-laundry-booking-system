@@ -14,6 +14,9 @@ import { haversineKm } from '../../utils/maps/distance.util.js';
 import { CreateStoreDto } from './dto/create-store.dto.js';
 import { UpdateStoreDto } from './dto/update-store.dto.js';
 import { QueryStoreDto } from './dto/query-store.dto.js';
+import { AssignStaffDto } from './dto/assign-staff.dto.js';
+import { TopSellingAreaDto } from './dto/query-store.dto.js';
+import { normalizeArea, parseAddress } from '../../utils/address/address.util.js';
 
 type StoreRecord = Prisma.laundry_storesGetPayload<object>;
 
@@ -372,5 +375,142 @@ export class StoreService {
     }
 
     return { message: 'Staff unassigned successfully' };
+  }
+
+  async getTopSellingStores() {
+    const stores = await this.prisma.laundry_stores.findMany({
+      where: {
+        status: 'active',
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        description: true,
+        phone: true,
+        image_url: true,
+        latitude: true,
+        longitude: true,
+
+        _count: {
+          select: {
+            bookings: {
+              where: {
+                status: 'completed',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return stores
+      .sort((a, b) => {
+        const countA = a._count.bookings;
+        const countB = b._count.bookings;
+
+        return countB - countA || a.id - b.id;
+      })
+      .slice(0, 6)
+      .map(({ _count, ...store }) => ({
+        ...store,
+        completedBookings: _count.bookings,
+      }));
+  }
+
+  async getTopSellingStoresByArea(payload: TopSellingAreaDto) {
+    // 1. Chuẩn hóa khu vực người dùng gửi từ frontend
+    const userWard = normalizeArea(payload.ward);
+    const userDistrict = normalizeArea(payload.district);
+    const userCity = normalizeArea(payload.city);
+
+    if (!userCity) {
+      throw new BadRequestException(
+        'Vui lòng cung cấp thông tin thành phố',
+      );
+    }
+
+    // 2. Lấy các cửa hàng đang hoạt động
+    const stores = await this.prisma.laundry_stores.findMany({
+      where: {
+        status: 'active',
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        description: true,
+        phone: true,
+        image_url: true,
+        latitude: true,
+        longitude: true,
+        _count: {
+          select: {
+            bookings: {
+              where: {
+                status: 'completed',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 3. Phân tích địa chỉ cửa hàng và xác định mức độ phù hợp
+    const matchedStores = stores
+      .map((store) => {
+        const area = parseAddress(store.address);
+
+        const storeWard = normalizeArea(area.ward);
+        const storeDistrict = normalizeArea(area.district);
+        const storeCity = normalizeArea(area.city);
+
+        // Chỉ lấy cửa hàng cùng thành phố
+        if (!storeCity || storeCity !== userCity) {
+          return null;
+        }
+
+        let areaScore = 1;
+
+        // Cùng quận/huyện
+        if (
+          userDistrict &&
+          storeDistrict &&
+          userDistrict === storeDistrict
+        ) {
+          areaScore = 2;
+
+          // Cùng phường/xã
+          if (
+            userWard &&
+            storeWard &&
+            userWard === storeWard
+          ) {
+            areaScore = 3;
+          }
+        }
+
+        return {
+          ...store,
+          areaScore,
+        };
+      })
+      .filter((store) => store !== null);
+
+    // 4. Sắp xếp theo mức độ phù hợp khu vực và số booking hoàn thành
+    return matchedStores
+      .sort((a, b) => {
+        return (
+          b.areaScore - a.areaScore ||
+          b._count.bookings - a._count.bookings ||
+          a.id - b.id
+        );
+      })
+      .slice(0, 6)
+      .map(({ _count, areaScore, ...store }) => ({
+        ...store,
+        completedBookings: _count.bookings,
+        areaScore,
+      }));
   }
 }
