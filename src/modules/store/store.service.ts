@@ -138,6 +138,8 @@ export class StoreService {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
           { address: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
         ],
       }),
     };

@@ -27,7 +27,7 @@ export class QueryStoreDto {
   @Max(100)
   limit: number = 10;
 
-  // Tìm theo tên hoặc địa chỉ.
+  // Tìm theo tên, địa chỉ, mô tả hoặc số điện thoại.
   @IsOptional()
   @IsString()
   @MaxLength(100)
