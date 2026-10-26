@@ -23,6 +23,14 @@ export class AuthRateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Tắt tạm khi dev/test (RATE_LIMIT_ENABLED=false). Production luôn bật.
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.RATE_LIMIT_ENABLED === 'false'
+    ) {
+      return true;
+    }
+
     const options = this.reflector.getAllAndOverride<RateLimitOptions>(
       RATE_LIMIT_KEY,
       [context.getHandler(), context.getClass()],
