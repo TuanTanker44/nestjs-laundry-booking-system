@@ -7,7 +7,7 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 export const PASSWORD_MESSAGE =
-  'password must contain at least one uppercase letter, one lowercase letter and one number';
+  'Password must contain at least one uppercase letter, one lowercase letter and one number';
 
 export function refreshCookieOptions(): CookieOptions {
   return {

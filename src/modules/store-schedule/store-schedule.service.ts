@@ -20,6 +20,7 @@ import {
   timeToDate,
   toMinutes,
 } from './schedule-time.util.js';
+import { slotBlockingWhere } from '../../utils/slot-capacity.util.js';
 
 interface Actor {
   id: number;
@@ -29,9 +30,6 @@ interface Actor {
 // Giá trị mặc định khi ngày đó chưa có lịch tuần (khớp default trong DB).
 const DEFAULT_SLOT_MINUTES = 60;
 const DEFAULT_MAX_BOOKINGS = 5;
-
-// Các booking đã hủy / không đến thì không chiếm chỗ của slot.
-const NON_BLOCKING_STATUSES = ['cancelled', 'no_show'] as const;
 
 @Injectable()
 export class StoreScheduleService {
@@ -278,38 +276,8 @@ export class StoreScheduleService {
       throw new BadRequestException('date must not be in the past');
     }
 
-    const [schedule, exception] = await Promise.all([
-      this.prisma.store_schedules.findUnique({
-        where: {
-          store_id_day_of_week: {
-            store_id: storeId,
-            day_of_week: day.getUTCDay(),
-          },
-        },
-      }),
-      this.prisma.store_schedule_exceptions.findUnique({
-        where: {
-          store_id_exception_date: { store_id: storeId, exception_date: day },
-        },
-      }),
-    ]);
-
-    // Xác định giờ mở/đóng: ngoại lệ ghi đè lịch tuần.
-    let open: string | null = schedule ? dateToTime(schedule.open_time) : null;
-    let close: string | null = schedule ? dateToTime(schedule.close_time) : null;
-    let reason: string | null = null;
-
-    if (exception) {
-      reason = exception.reason;
-
-      if (exception.is_closed) {
-        open = null;
-        close = null;
-      } else {
-        open = exception.open_time ? dateToTime(exception.open_time) : open;
-        close = exception.close_time ? dateToTime(exception.close_time) : close;
-      }
-    }
+    const hours = await this.resolveDayHours(storeId, day);
+    const { open, close, reason, slotMinutes, capacity } = hours;
 
     if (!open || !close) {
       return {
@@ -322,15 +290,12 @@ export class StoreScheduleService {
       };
     }
 
-    const slotMinutes = schedule?.slot_duration_minutes ?? DEFAULT_SLOT_MINUTES;
-    const capacity = schedule?.max_bookings_per_slot ?? DEFAULT_MAX_BOOKINGS;
-
     // Đếm số booking theo giờ bắt đầu trong ngày.
     const nextDay = new Date(day.getTime() + 24 * 60 * 60 * 1000);
     const bookings = await this.prisma.bookings.findMany({
       where: {
         store_id: storeId,
-        status: { notIn: [...NON_BLOCKING_STATUSES] },
+        ...slotBlockingWhere(),
         scheduled_pickup_start: { gte: day, lt: nextDay },
       },
       select: { scheduled_pickup_start: true },
@@ -371,6 +336,76 @@ export class StoreScheduleService {
       close_time: close,
       slot_duration_minutes: slotMinutes,
       slots,
+    };
+  }
+
+  /**
+   * Dành cho BookingModule: tìm slot bắt đầu đúng `startTime` trong ngày.
+   * Trả null nếu hôm đó cửa hàng nghỉ hoặc giờ không khớp slot nào.
+   * Không kiểm tra chỗ trống (BookingModule tự đếm trong transaction).
+   */
+  async findSlot(storeId: number, dateText: string, startTime: string) {
+    const day = this.requireDate(dateText, 'pickup_date');
+    const { open, close, slotMinutes, capacity } = await this.resolveDayHours(
+      storeId,
+      day,
+    );
+
+    if (!open || !close) {
+      return null;
+    }
+
+    const slot = generateSlots(open, close, slotMinutes).find(
+      (item) => item.start === startTime,
+    );
+
+    return slot ? { ...slot, capacity, slot_duration_minutes: slotMinutes } : null;
+  }
+
+  /**
+   * Giờ mở/đóng, độ dài slot và sức chứa của một ngày.
+   * Ngày ngoại lệ ghi đè lịch tuần; open/close = null nghĩa là nghỉ cả ngày.
+   */
+  private async resolveDayHours(storeId: number, day: Date) {
+    const [schedule, exception] = await Promise.all([
+      this.prisma.store_schedules.findUnique({
+        where: {
+          store_id_day_of_week: {
+            store_id: storeId,
+            day_of_week: day.getUTCDay(),
+          },
+        },
+      }),
+      this.prisma.store_schedule_exceptions.findUnique({
+        where: {
+          store_id_exception_date: { store_id: storeId, exception_date: day },
+        },
+      }),
+    ]);
+
+    // Xác định giờ mở/đóng: ngoại lệ ghi đè lịch tuần.
+    let open: string | null = schedule ? dateToTime(schedule.open_time) : null;
+    let close: string | null = schedule ? dateToTime(schedule.close_time) : null;
+    let reason: string | null = null;
+
+    if (exception) {
+      reason = exception.reason;
+
+      if (exception.is_closed) {
+        open = null;
+        close = null;
+      } else {
+        open = exception.open_time ? dateToTime(exception.open_time) : open;
+        close = exception.close_time ? dateToTime(exception.close_time) : close;
+      }
+    }
+
+    return {
+      open,
+      close,
+      reason,
+      slotMinutes: schedule?.slot_duration_minutes ?? DEFAULT_SLOT_MINUTES,
+      capacity: schedule?.max_bookings_per_slot ?? DEFAULT_MAX_BOOKINGS,
     };
   }
 }

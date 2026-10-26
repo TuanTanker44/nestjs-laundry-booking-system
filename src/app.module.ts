@@ -9,6 +9,8 @@ import { AddressModule } from './modules/address/address.module.js';
 import { StoreModule } from './modules/store/store.module.js';
 import { StoreScheduleModule } from './modules/store-schedule/store-schedule.module.js';
 import { LaundryServiceModule } from './modules/laundry-service/laundry-service.module.js';
+import { PromotionModule } from './modules/promotion/promotion.module.js';
+import { BookingModule } from './modules/booking/booking.module.js';
 import { validateEnv } from './config/env.validation.js';
 
 @Module({
@@ -25,6 +27,8 @@ import { validateEnv } from './config/env.validation.js';
     StoreModule,
     StoreScheduleModule,
     LaundryServiceModule,
+    PromotionModule,
+    BookingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -63,41 +63,42 @@ model booking_items {
 }
 
 model bookings {
-  id                                                Int                  @id @default(autoincrement())
-  booking_code                                      String               @unique(map: "uq_bookings_code") @db.VarChar(20)
+  id                                                Int                        @id @default(autoincrement())
+  booking_code                                      String                     @unique(map: "uq_bookings_code") @db.VarChar(20)
   customer_id                                       Int
   store_id                                          Int
   service_id                                        Int
-  service_name                                      String               @db.VarChar(100)
+  service_name                                      String                     @db.VarChar(100)
   pricing_unit                                      services_pricing_unit_enum
-  unit_price                                        Decimal              @db.Decimal(10, 2)
-  in_store                                          Boolean              @default(true)
-  pickup_address_id                                 Int
-  delivery_address_id                               Int
-  scheduled_pickup_start                            DateTime             @db.Timestamp(6)
-  scheduled_pickup_end                              DateTime             @db.Timestamp(6)
-  estimated_delivery_at                             DateTime?            @db.Timestamp(6)
-  status                                            bookings_status_enum @default(pending_payment)
-  estimated_weight_kg                               Decimal?             @db.Decimal(6, 2)
-  actual_weight_kg                                  Decimal?             @db.Decimal(6, 2)
-  estimated_price                                   Decimal              @db.Decimal(10, 2)
-  final_price                                       Decimal?             @db.Decimal(10, 2)
-  discount_amount                                   Decimal              @default(0) @db.Decimal(10, 2)
+  unit_price                                        Decimal                    @db.Decimal(10, 2)
+  in_store                                          Boolean                    @default(true)
+  pickup_address_id                                 Int?
+  delivery_address_id                               Int?
+  scheduled_pickup_start                            DateTime                   @db.Timestamp(6)
+  scheduled_pickup_end                              DateTime                   @db.Timestamp(6)
+  estimated_delivery_at                             DateTime?                  @db.Timestamp(6)
+  status                                            bookings_status_enum       @default(pending_payment)
+  estimated_weight_kg                               Decimal?                   @db.Decimal(6, 2)
+  actual_weight_kg                                  Decimal?                   @db.Decimal(6, 2)
+  estimated_price                                   Decimal                    @db.Decimal(10, 2)
+  final_price                                       Decimal?                   @db.Decimal(10, 2)
+  discount_amount                                   Decimal                    @default(0) @db.Decimal(10, 2)
+  delivery_price                                    Decimal?                   @db.Decimal(10, 2)
   promotion_id                                      Int?
-  special_instructions                              String?              @db.VarChar(255)
-  qr_token                                          String?              @unique(map: "uq_bookings_qr_token") @db.VarChar(255)
+  special_instructions                              String?                    @db.VarChar(255)
+  qr_token                                          String?                    @unique(map: "uq_bookings_qr_token") @db.VarChar(255)
   cancelled_by                                      Int?
-  cancellation_reason                               String?              @db.VarChar(255)
-  created_at                                        DateTime             @default(now()) @db.Timestamp(6)
-  updated_at                                        DateTime             @default(now()) @updatedAt @db.Timestamp(6)
+  cancellation_reason                               String?                    @db.VarChar(255)
+  created_at                                        DateTime                   @default(now()) @db.Timestamp(6)
+  updated_at                                        DateTime                   @default(now()) @updatedAt @db.Timestamp(6)
   booking_items                                     booking_items[]
-  users_bookings_cancelled_byTousers                users?               @relation("bookings_cancelled_byTousers", fields: [cancelled_by], references: [id], onUpdate: NoAction, map: "fk_bookings_cancelled_by")
-  users_bookings_customer_idTousers                 users                @relation("bookings_customer_idTousers", fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_bookings_customer")
-  addresses_bookings_delivery_address_idToaddresses addresses            @relation("bookings_delivery_address_idToaddresses", fields: [delivery_address_id], references: [id], onUpdate: NoAction, map: "fk_bookings_delivery_address")
-  addresses_bookings_pickup_address_idToaddresses   addresses            @relation("bookings_pickup_address_idToaddresses", fields: [pickup_address_id], references: [id], onUpdate: NoAction, map: "fk_bookings_pickup_address")
-  promotions                                        promotions?          @relation(fields: [promotion_id], references: [id], onUpdate: NoAction, map: "fk_bookings_promotion")
-  services                                          services             @relation(fields: [service_id], references: [id], onUpdate: NoAction, map: "fk_bookings_service")
-  laundry_stores                                    laundry_stores       @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_bookings_store")
+  users_bookings_cancelled_byTousers                users?                     @relation("bookings_cancelled_byTousers", fields: [cancelled_by], references: [id], onUpdate: NoAction, map: "fk_bookings_cancelled_by")
+  users_bookings_customer_idTousers                 users                      @relation("bookings_customer_idTousers", fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_bookings_customer")
+  addresses_bookings_delivery_address_idToaddresses addresses?                 @relation("bookings_delivery_address_idToaddresses", fields: [delivery_address_id], references: [id], onUpdate: NoAction, map: "fk_bookings_delivery_address")
+  addresses_bookings_pickup_address_idToaddresses   addresses?                 @relation("bookings_pickup_address_idToaddresses", fields: [pickup_address_id], references: [id], onUpdate: NoAction, map: "fk_bookings_pickup_address")
+  promotions                                        promotions?                @relation(fields: [promotion_id], references: [id], onUpdate: NoAction, map: "fk_bookings_promotion")
+  services                                          services                   @relation(fields: [service_id], references: [id], onUpdate: NoAction, map: "fk_bookings_service")
+  laundry_stores                                    laundry_stores             @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_bookings_store")
   complaints                                        complaints[]
   delivery_trips                                    delivery_trips[]
   machine_usage_logs                                machine_usage_logs[]
