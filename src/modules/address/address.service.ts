@@ -1,5 +1,6 @@
 
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -174,29 +175,49 @@ export class AddressService {
       ? await this.tryGeocode(nextAddress)
       : null;
 
-    return this.prisma.addresses.update({
-      where: { id: addressId },
-      data: {
-        ...(dto.label !== undefined && { label: dto.label }),
-        ...(dto.recipient_name !== undefined && {
-          recipient_name: dto.recipient_name,
-        }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.address_line !== undefined && {
-          address_line: dto.address_line,
-        }),
-        ...(dto.ward !== undefined && { ward: dto.ward }),
-        ...(dto.district !== undefined && {
-          district: dto.district,
-        }),
-        ...(dto.city !== undefined && { city: dto.city }),
+    // Luôn phải còn đúng một địa chỉ mặc định: muốn đổi thì đặt địa chỉ khác làm mặc định.
+    if (dto.is_default === false && current.is_default) {
+      throw new BadRequestException(
+        'Cannot unset the default address, set another address as default instead',
+      );
+    }
 
-        // Không giữ tọa độ cũ khi địa chỉ đã thay đổi.
-        ...(locationChanged && {
-          latitude: coordinates?.latitude ?? null,
-          longitude: coordinates?.longitude ?? null,
-        }),
-      },
+    const becomesDefault = dto.is_default === true && !current.is_default;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Bỏ mặc định của địa chỉ cũ trước, rồi mới đặt địa chỉ này làm mặc định.
+      if (becomesDefault) {
+        await tx.addresses.updateMany({
+          where: { user_id: userId, is_default: true, id: { not: addressId } },
+          data: { is_default: false },
+        });
+      }
+
+      return tx.addresses.update({
+        where: { id: addressId },
+        data: {
+          ...(dto.label !== undefined && { label: dto.label }),
+          ...(dto.recipient_name !== undefined && {
+            recipient_name: dto.recipient_name,
+          }),
+          ...(dto.phone !== undefined && { phone: dto.phone }),
+          ...(dto.address_line !== undefined && {
+            address_line: dto.address_line,
+          }),
+          ...(dto.ward !== undefined && { ward: dto.ward }),
+          ...(dto.district !== undefined && {
+            district: dto.district,
+          }),
+          ...(dto.city !== undefined && { city: dto.city }),
+          ...(becomesDefault && { is_default: true }),
+
+          // Không giữ tọa độ cũ khi địa chỉ đã thay đổi.
+          ...(locationChanged && {
+            latitude: coordinates?.latitude ?? null,
+            longitude: coordinates?.longitude ?? null,
+          }),
+        },
+      });
     });
   }
 

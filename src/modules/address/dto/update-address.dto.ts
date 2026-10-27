@@ -1,5 +1,6 @@
 
 import {
+  IsBoolean,
   IsOptional,
   IsString,
   MaxLength,
@@ -47,4 +48,8 @@ export class UpdateAddressDto {
   @IsString()
   @MaxLength(100)
   city?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  is_default?: boolean;
 }
