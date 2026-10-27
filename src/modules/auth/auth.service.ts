@@ -15,6 +15,8 @@ import {
   ONE_TIME_TOKEN_TTL_MS,
   REFRESH_TOKEN_TTL_MS,
 } from './auth.constants.js';
+import { EmailService } from '../../utils/email/email.service.js';
+import { buildEmailVerificationTemplate } from '../../utils/email/templates/email-verification.template.js';
 
 interface JwtPayload {
   sub: number;
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly passwordResetTokenService: PasswordResetTokenService,
     private readonly emailVerificationTokenService: EmailVerificationTokenService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) { }
 
   generateAccessToken(payload: JwtPayload) {
@@ -50,7 +53,7 @@ export class AuthService {
       return;
     }
 
-    this.logger.debug(`[DEV ONLY] ${purpose} token for ${email}: ${token}`);
+    this.logger.debug(`[DEV ONLY] ${purpose} token for ${email} has sent to their email: ${token}`);
   }
 
   private async issueVerificationToken(userId: number, email: string) {
@@ -61,6 +64,24 @@ export class AuthService {
       token,
       new Date(Date.now() + ONE_TIME_TOKEN_TTL_MS),
     );
+
+    const frontendUrl = process.env.FRONTEND_URL
+
+    const verificationUrl = new URL(
+      '/verify-email',
+      frontendUrl,
+    );
+
+    verificationUrl.searchParams.set('token', token);
+
+    await this.emailService.sendMail({
+      to: email,
+      subject: 'Xác thực tài khoản LaundryBooking',
+      html: buildEmailVerificationTemplate(
+        verificationUrl.toString(),
+      ),
+      text: `Xác thực tài khoản tại: ${verificationUrl.toString()}`,
+    });
 
     this.logTokenForDev('Email verification', email, token);
   }

@@ -11,6 +11,7 @@ import { JwtAuthGuard } from "./guards/jwt.guard.js";
 import { RoleGuard } from "./guards/role.guard.js";
 import { JwtStrategy } from "./strategies/jwt.strategy.js";
 import { AuthRateLimitGuard } from "./guards/rate-limit.guard.js";
+import { EmailModule } from "../../utils/email/email.module.js";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AuthRateLimitGuard } from "./guards/rate-limit.guard.js";
     RefreshTokenModule,
     PasswordResetTokenModule,
     EmailVerificationTokenModule,
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RoleGuard, AuthRateLimitGuard, JwtStrategy],

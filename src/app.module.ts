@@ -12,6 +12,7 @@ import { LaundryServiceModule } from './modules/laundry-service/laundry-service.
 import { PromotionModule } from './modules/promotion/promotion.module.js';
 import { BookingModule } from './modules/booking/booking.module.js';
 import { validateEnv } from './config/env.validation.js';
+import { EmailModule } from './utils/email/email.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { validateEnv } from './config/env.validation.js';
     }),
     PrismaModule,
     RedisModule,
+    EmailModule,
     AuthModule,
     AddressModule,
     StoreModule,
