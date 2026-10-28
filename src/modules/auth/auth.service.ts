@@ -17,6 +17,7 @@ import {
 } from './auth.constants.js';
 import { EmailService } from '../../utils/email/email.service.js';
 import { buildEmailVerificationTemplate } from '../../utils/email/templates/email-verification.template.js';
+import { buildPasswordResetTemplate } from '../../utils/email/templates/password-reset.template.js';
 
 interface JwtPayload {
   sub: number;
@@ -279,8 +280,25 @@ export class AuthService {
         new Date(Date.now() + ONE_TIME_TOKEN_TTL_MS),
       );
 
+      const frontendUrl = process.env.FRONTEND_URL
+
+      const verificationUrl = new URL(
+        '/reset-password',
+        frontendUrl,
+      );
+
+      verificationUrl.searchParams.set('token', token);
+
+      await this.emailService.sendMail({
+        to: email,
+        subject: 'Khôi phục mật khẩu LaundryBooking',
+        html: buildPasswordResetTemplate(
+          verificationUrl.toString(),
+        ),
+        text: `Khôi phục mật khẩu tại: ${verificationUrl.toString()}`,
+      });
+
       this.logTokenForDev('Password reset', user.email, token);
-      // TODO: gửi email reset password
     }
 
     return {
