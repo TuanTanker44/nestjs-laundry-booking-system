@@ -65,6 +65,7 @@ export class AuthController {
       dto.email,
       dto.password,
       dto.name,
+      dto.date_of_birth,
     );
   }
 

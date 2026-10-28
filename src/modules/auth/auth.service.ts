@@ -91,6 +91,7 @@ export class AuthService {
     email: string,
     password: string,
     name: string,
+    dateOfBirth?: Date,
   ) {
     const existingUser = await this.userService.findByEmail(email);
 
@@ -104,6 +105,7 @@ export class AuthService {
       email,
       password_hash: passwordHash,
       name,
+      date_of_birth: dateOfBirth,
     });
 
     await this.issueVerificationToken(user.id, user.email);
