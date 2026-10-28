@@ -518,6 +518,18 @@ export class BookingService {
       include: {
         booking_items: true,
         laundry_stores: { select: { id: true, name: true, address: true } },
+        // Tóm tắt thanh toán để UI biết đơn đã trả hay chưa (không lấy raw_response).
+        payments: {
+          select: {
+            id: true,
+            payment_type: true,
+            amount: true,
+            method: true,
+            status: true,
+            paid_at: true,
+          },
+          orderBy: { created_at: 'desc' },
+        },
       },
     });
 
@@ -527,9 +539,16 @@ export class BookingService {
 
     await this.assertCanAccess(actor, booking);
 
-    const { laundry_stores: store, ...rest } = booking;
+    const { laundry_stores: store, payments, ...rest } = booking;
 
-    return { ...this.serialize(rest, rest.booking_items), store };
+    return {
+      ...this.serialize(rest, rest.booking_items),
+      store,
+      payments: payments.map((payment) => ({
+        ...payment,
+        amount: payment.amount.toNumber(),
+      })),
+    };
   }
 
   // -------------------------------------------------------------- Hủy / đổi trạng thái
@@ -551,8 +570,8 @@ export class BookingService {
       );
     }
 
-    // TODO(payment): hiện chỉ tính phần trăm hoàn tiền; khi có module thanh toán
-    // thì tạo giao dịch hoàn tiền (payments.status = refunded) theo tỉ lệ này.
+    // TODO(payment-refund): hiện chỉ tính phần trăm hoàn tiền; phase 2 sẽ tạo giao
+    // dịch hoàn tiền (payments.status = refunded) theo tỉ lệ này.
     const refund = refundPercent({
       status: booking.status,
       pickupStart: booking.scheduled_pickup_start,
@@ -628,8 +647,8 @@ export class BookingService {
       );
     }
 
-    // TODO(payment): pending_payment -> confirmed hiện do admin / staff bấm tay;
-    // sau này chuyển sang tự động khi cổng thanh toán báo thành công.
+    // Thanh toán online (VNPay / MoMo) tự chuyển pending_payment -> confirmed qua
+    // PaymentService.handleIpn; staff bấm tay ở đây là đường dự phòng cho tiền mặt.
     // TODO(machine): processing -> gán máy `idle` và ghi machine_usage_logs;
     // completed -> đóng log và trả máy về `idle`.
     const data: Prisma.bookingsUncheckedUpdateManyInput = { status: to };

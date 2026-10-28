@@ -290,6 +290,9 @@ model payments {
   amount                  Decimal                    @db.Decimal(10, 2)
   method                  payments_method_enum
   provider_transaction_id String?                    @db.VarChar(100)
+  payment_url             String?
+  qr_code_url             String?
+  expires_at              DateTime?                  @db.Timestamp(6)
   status                  payments_status_enum       @default(pending)
   paid_at                 DateTime?                  @db.Timestamp(6)
   refunded_at             DateTime?                  @db.Timestamp(6)

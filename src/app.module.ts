@@ -11,6 +11,7 @@ import { StoreScheduleModule } from './modules/store-schedule/store-schedule.mod
 import { LaundryServiceModule } from './modules/laundry-service/laundry-service.module.js';
 import { PromotionModule } from './modules/promotion/promotion.module.js';
 import { BookingModule } from './modules/booking/booking.module.js';
+import { PaymentModule } from './modules/payment/payment.module.js';
 import { validateEnv } from './config/env.validation.js';
 import { EmailModule } from './utils/email/email.module.js';
 
@@ -31,6 +32,7 @@ import { EmailModule } from './utils/email/email.module.js';
     LaundryServiceModule,
     PromotionModule,
     BookingModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
