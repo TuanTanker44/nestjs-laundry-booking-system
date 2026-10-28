@@ -1,13 +1,19 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import bcrypt from "bcrypt";
 import { PrismaService } from "../../prisma/prisma.service.js";
+import { RefreshTokenService } from "../auth/refresh_token/refresh_token.service.js";
 import type { CreateUserDto } from "./dto/create-user.dto.js";
 import { AdminUpdateUserDto, UpdateProfileDto } from "./dto/update-user.dto.js";
 
 const SAFE_USER_SELECT = {
   id: true,
   full_name: true,
+  date_of_birth: true,
   email: true,
   phone: true,
   role: true,
@@ -23,6 +29,7 @@ export class UserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly refreshTokenService: RefreshTokenService,
   ) { }
 
   hashPassword(password: string) {
@@ -76,13 +83,14 @@ export class UserService {
   }
 
   async create(dto: CreateUserDto) {
-    const { name, password_hash, email } = dto;
+    const { name, password_hash, email, date_of_birth } = dto;
 
     return this.prisma.users.create({
       data: {
         email,
         full_name: name,
         password_hash: password_hash,
+        date_of_birth,
       },
     });
   }
@@ -116,6 +124,41 @@ export class UserService {
     });
   }
 
+  async changePasswordByUser(
+    id: number,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.findById(id);
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    const currentValid = await bcrypt.compare(
+      currentPassword,
+      user.password_hash,
+    );
+
+    if (!currentValid) {
+      throw new BadRequestException("Current password is incorrect");
+    }
+
+    const sameAsCurrent = await bcrypt.compare(newPassword, user.password_hash);
+
+    if (sameAsCurrent) {
+      throw new BadRequestException(
+        "New password must be different from the current password",
+      );
+    }
+
+    await this.changePassword(id, newPassword);
+    await this.refreshTokenService.revokeAllByUserId(id);
+
+    return { message: "Password changed successfully" };
+  }
+
+  /** Chỉ đặt mật khẩu mới, không xác thực gì — dùng nội bộ (reset password qua email token). */
   async changePassword(id: number, newPassword: string) {
     const hashedPassword = await this.hashPassword(newPassword);
 

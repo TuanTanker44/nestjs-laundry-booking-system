@@ -12,7 +12,7 @@ import { RoleGuard } from '../auth/guards/role.guard.js';
 import { Roles } from '../auth/decorators/role.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { UserService } from './user.service.js';
-import { UpdateProfileDto } from './dto/update-user.dto.js';
+import { ChangePasswordDto, UpdateProfileDto } from './dto/update-user.dto.js';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -32,6 +32,19 @@ export class UserController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.userService.update(userId, dto);
+  }
+
+  // PATCH /users/change-password — user tự đổi mật khẩu (cần mật khẩu hiện tại)
+  @Patch('change-password')
+  changePasswordByUser(
+    @CurrentUser('id') userId: number,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.userService.changePasswordByUser(
+      userId,
+      dto.current_password,
+      dto.new_password,
+    );
   }
 
   // GET /users — admin
