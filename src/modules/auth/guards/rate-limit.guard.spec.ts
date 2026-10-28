@@ -4,7 +4,7 @@ import { AuthRateLimitGuard } from './rate-limit.guard.js';
 import { RATE_LIMIT_KEY } from '../decorators/rate-limit.decorator.js';
 
 function context(request: any) {
-  return { getHandler: vi.fn(), getClass: vi.fn().mockReturnValue({ name: 'AuthController' }), switchToHttp: () => ({ getRequest: () => request }) } as any;
+  return { getHandler: vi.fn().mockReturnValue({ name: 'login' }), getClass: vi.fn().mockReturnValue({ name: 'AuthController' }), switchToHttp: () => ({ getRequest: () => request }) } as any;
 }
 
 describe('AuthRateLimitGuard', () => {

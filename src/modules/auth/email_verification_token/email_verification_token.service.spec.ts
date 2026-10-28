@@ -28,6 +28,8 @@ describe('EmailVerificationTokenService', () => {
 
   it('requires token secret', async () => {
     delete process.env.EMAIL_VERIFICATION_TOKEN_SECRET;
-    await expect(new EmailVerificationTokenService({} as never).findByToken('token')).rejects.toThrow('EMAIL_VERIFICATION_TOKEN_SECRET is not configured');
+    const prisma = { email_verification_tokens: { findUnique: vi.fn() } };
+    await expect(new EmailVerificationTokenService(prisma as never).findByToken('token')).rejects.toThrow('EMAIL_VERIFICATION_TOKEN_SECRET is not configured');
+    expect(prisma.email_verification_tokens.findUnique).not.toHaveBeenCalled();
   });
 });

@@ -28,6 +28,8 @@ describe('PasswordResetTokenService', () => {
 
   it('requires reset-token secret', async () => {
     delete process.env.PASSWORD_RESET_TOKEN_SECRET;
-    await expect(new PasswordResetTokenService({} as never).findByToken('token')).rejects.toThrow('PASSWORD_RESET_TOKEN_SECRET is not configured');
+    const prisma = { password_reset_tokens: { findUnique: vi.fn() } };
+    await expect(new PasswordResetTokenService(prisma as never).findByToken('token')).rejects.toThrow('PASSWORD_RESET_TOKEN_SECRET is not configured');
+    expect(prisma.password_reset_tokens.findUnique).not.toHaveBeenCalled();
   });
 });
