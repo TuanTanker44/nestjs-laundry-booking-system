@@ -4,11 +4,13 @@ import { StoreModule } from '../store/store.module.js';
 import { MomoService } from './gateways/momo.service.js';
 import { VnpayService } from './gateways/vnpay.service.js';
 import { PaymentController } from './payment.controller.js';
+import { PaymentScheduler } from './payment.scheduler.js';
 import { PaymentService } from './payment.service.js';
 
 @Module({
   imports: [PrismaModule, StoreModule],
   controllers: [PaymentController],
-  providers: [PaymentService, VnpayService, MomoService],
+  providers: [PaymentService, PaymentScheduler, VnpayService, MomoService],
+  exports: [PaymentService],
 })
 export class PaymentModule {}

@@ -290,6 +290,7 @@ model payments {
   amount                  Decimal                    @db.Decimal(10, 2)
   method                  payments_method_enum
   provider_transaction_id String?                    @db.VarChar(100)
+  txn_ref                 String?                    @unique(map: "uq_payments_txn_ref") @db.VarChar(50)
   payment_url             String?
   qr_code_url             String?
   expires_at              DateTime?                  @db.Timestamp(6)

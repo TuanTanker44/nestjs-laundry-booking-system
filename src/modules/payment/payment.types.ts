@@ -42,7 +42,45 @@ export interface CreateGatewayPaymentParams {
   orderInfo: string;
   /** Hết hạn thanh toán, trùng thời điểm hết hạn giữ chỗ của đơn. */
   expireAt: Date;
+  /** Thời điểm tạo giao dịch (đúng giây), trùng phần T của txnRef. */
+  createdAt: Date;
   clientIp: string;
+}
+
+export interface QueryTransactionParams {
+  txnRef: string;
+  /** Thời điểm tạo giao dịch, lấy từ txnRef (VNPay yêu cầu kèm khi truy vấn). */
+  createdAt: Date;
+}
+
+/**
+ * paid: cổng xác nhận đã thu tiền. failed: cổng báo thất bại / hủy.
+ * unpaid: chưa có kết quả (khách chưa trả, hoặc cổng không có giao dịch).
+ */
+export type GatewayQueryState = 'paid' | 'failed' | 'unpaid';
+
+export interface GatewayQueryResult {
+  state: GatewayQueryState;
+  /** Số tiền VND cổng báo (chỉ có ý nghĩa khi state = paid). */
+  amount: number;
+  providerTransactionId: string | null;
+  raw: Record<string, unknown>;
+}
+
+export interface RefundParams {
+  /** Mã yêu cầu hoàn tiền, cố định cho mỗi payment để gửi lại không hoàn hai lần. */
+  refundRef: string;
+  txnRef: string;
+  createdAt: Date;
+  /** Số tiền VND hoàn (hoàn toàn phần). */
+  amount: number;
+  providerTransactionId: string | null;
+  /** Lý do, không dấu. */
+  reason: string;
+}
+
+export interface GatewayRefundResult {
+  raw: Record<string, unknown>;
 }
 
 export interface GatewayPaymentLink {
@@ -67,6 +105,10 @@ export interface PaymentGateway {
   readonly method: OnlinePaymentMethod;
   createPayment(params: CreateGatewayPaymentParams): Promise<GatewayPaymentLink>;
   verifyCallback(payload: Record<string, unknown>): GatewayCallbackResult;
+  /** Hỏi cổng trạng thái giao dịch (đối soát khi IPN bị mất). Lỗi mạng / cổng thì throw. */
+  queryTransaction(params: QueryTransactionParams): Promise<GatewayQueryResult>;
+  /** Hoàn toàn phần giao dịch đã thu. Cổng từ chối hoặc lỗi mạng thì throw. */
+  refund(params: RefundParams): Promise<GatewayRefundResult>;
 }
 
 export type CallbackOutcome =

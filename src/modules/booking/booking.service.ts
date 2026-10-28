@@ -9,6 +9,7 @@ import {
 
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PaymentService } from '../payment/payment.service.js';
 import { PromotionService } from '../promotion/promotion.service.js';
 import { StoreService } from '../store/store.service.js';
 import { StoreScheduleService } from '../store-schedule/store-schedule.service.js';
@@ -58,6 +59,7 @@ export class BookingService {
     private readonly storeService: StoreService,
     private readonly scheduleService: StoreScheduleService,
     private readonly promotionService: PromotionService,
+    private readonly paymentService: PaymentService,
   ) {}
 
   /** Decimal trả về JSON dạng chuỗi, đổi sang number cho client. */
@@ -556,6 +558,7 @@ export class BookingService {
   /**
    * Hủy đơn (chỉ khi pending_payment / confirmed). Khách hủy muộn hơn
    * FREE_CANCEL_HOURS trước giờ lấy vẫn được nhưng hoàn 0%.
+   * Hoàn tiền là hệ quả tự động của việc hủy (hoàn về đúng khoản đã thu), dù ai bấm hủy.
    */
   async cancel(actor: Actor, id: number, dto: CancelBookingDto) {
     await this.expireStalePending({ id });
@@ -570,8 +573,7 @@ export class BookingService {
       );
     }
 
-    // TODO(payment-refund): hiện chỉ tính phần trăm hoàn tiền; phase 2 sẽ tạo giao
-    // dịch hoàn tiền (payments.status = refunded) theo tỉ lệ này.
+    // refundPercent chỉ trả 0 hoặc 100 nên hoàn toàn phần; hoàn một phần chưa hỗ trợ.
     const refund = refundPercent({
       status: booking.status,
       pickupStart: booking.scheduled_pickup_start,
@@ -600,15 +602,22 @@ export class BookingService {
         await this.promotionService.release(tx, booking.promotion_id);
       }
 
+      // Đóng phiên thanh toán đang chờ và đánh dấu khoản đã thu cần hoàn, cùng transaction với việc hủy.
+      await this.paymentService.onBookingCancelled(tx, id, refund === 100);
+
       return tx.bookings.findUniqueOrThrow({
         where: { id },
         include: { booking_items: true },
       });
     });
 
+    // Gọi cổng sau khi đã commit. Hoàn lỗi thì đơn vẫn hủy và cron thử lại ('pending').
+    const refundStatus = await this.paymentService.refundBooking(id);
+
     return {
       booking: this.serialize(updated, updated.booking_items),
       refund_percent: refund,
+      refund_status: refundStatus,
     };
   }
 
