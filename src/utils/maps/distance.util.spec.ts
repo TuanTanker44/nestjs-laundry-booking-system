@@ -11,8 +11,9 @@ describe('distance.util', () => {
       { lat: 10.8231, lng: 106.6297 },
     );
 
-    expect(distance).toBeGreaterThan(1140);
-    expect(distance).toBeLessThan(1160);
+    // Hà Nội - TP.HCM đường chim bay ≈ 1138 km.
+    expect(distance).toBeGreaterThan(1130);
+    expect(distance).toBeLessThan(1145);
   });
 
   it('is symmetric', () => {

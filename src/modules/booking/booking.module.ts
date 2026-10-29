@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module.js';
+import { DeliveryModule } from '../delivery-trip/delivery.module.js';
 import { PaymentModule } from '../payment/payment.module.js';
 import { PromotionModule } from '../promotion/promotion.module.js';
 import { StoreModule } from '../store/store.module.js';
@@ -14,6 +15,7 @@ import { BookingService } from './booking.service.js';
     StoreScheduleModule,
     PromotionModule,
     PaymentModule,
+    DeliveryModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],

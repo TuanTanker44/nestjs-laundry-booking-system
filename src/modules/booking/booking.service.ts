@@ -9,6 +9,7 @@ import {
 
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { DeliveryFeeService } from '../delivery-trip/delivery-fee.service.js';
 import { PaymentService } from '../payment/payment.service.js';
 import { PromotionService } from '../promotion/promotion.service.js';
 import { StoreService } from '../store/store.service.js';
@@ -60,6 +61,7 @@ export class BookingService {
     private readonly scheduleService: StoreScheduleService,
     private readonly promotionService: PromotionService,
     private readonly paymentService: PaymentService,
+    private readonly deliveryFeeService: DeliveryFeeService,
   ) {}
 
   /** Decimal trả về JSON dạng chuỗi, đổi sang number cho client. */
@@ -192,6 +194,30 @@ export class BookingService {
   }
 
   /**
+   * Phí giao của đơn (null với đơn tại cửa hàng). Gọi API đường đi bên ngoài nên
+   * tính TRƯỚC khi mở transaction; số tiền luôn do server tính, không nhận từ client.
+   */
+  private async computeDeliveryPrice(
+    customerId: number,
+    dto: CreateBookingDto,
+  ): Promise<number | null> {
+    const addresses = this.resolveAddresses(dto);
+
+    if (addresses.pickup === null || addresses.delivery === null) {
+      return null;
+    }
+
+    const { total_fee } = await this.deliveryFeeService.quote(
+      customerId,
+      dto.store_id,
+      addresses.pickup,
+      addresses.delivery,
+    );
+
+    return total_fee;
+  }
+
+  /**
    * Kiểm tra toàn bộ điều kiện đặt lịch và tính giá. Dùng chung cho báo giá
    * (đọc thuần) và tạo đơn (chạy trong transaction, `lockSlot = true`).
    */
@@ -200,6 +226,7 @@ export class BookingService {
     customerId: number,
     dto: CreateBookingDto,
     lockSlot: boolean,
+    deliveryPrice: number | null,
   ) {
     const addresses = this.resolveAddresses(dto);
 
@@ -335,9 +362,8 @@ export class BookingService {
       subtotal,
       discount,
       promotionId,
-      // TODO(delivery): chưa có quy tắc tính phí giao nên delivery_price để null;
-      // khi có, cộng vào estimated_price ở đây.
-      estimatedPrice: computeTotal(subtotal, discount),
+      deliveryPrice,
+      estimatedPrice: computeTotal(subtotal, discount, deliveryPrice),
       estimatedDeliveryAt: service.estimated_turnaround_hours
         ? new Date(end.getTime() + service.estimated_turnaround_hours * HOUR_MS)
         : null,
@@ -360,7 +386,14 @@ export class BookingService {
 
   /** Khách xem trước giá và chỗ trống, không tạo đơn, không trừ lượt mã. */
   async quote(actor: Actor, dto: CreateBookingDto) {
-    const prepared = await this.prepare(this.prisma, actor.id, dto, false);
+    const deliveryPrice = await this.computeDeliveryPrice(actor.id, dto);
+    const prepared = await this.prepare(
+      this.prisma,
+      actor.id,
+      dto,
+      false,
+      deliveryPrice,
+    );
 
     return {
       store_id: dto.store_id,
@@ -375,7 +408,7 @@ export class BookingService {
       slots_left: prepared.slotsLeft,
       subtotal: prepared.subtotal,
       discount_amount: prepared.discount,
-      delivery_price: null,
+      delivery_price: prepared.deliveryPrice,
       estimated_price: prepared.estimatedPrice,
       estimated_delivery_at: prepared.estimatedDeliveryAt,
     };
@@ -385,9 +418,11 @@ export class BookingService {
     // Giải phóng các đơn quá hạn của chính khách (và lượt dùng mã) trước khi kiểm tra giới hạn.
     await this.expireStalePending({ customer_id: actor.id });
 
+    const deliveryPrice = await this.computeDeliveryPrice(actor.id, dto);
+
     for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
       try {
-        return await this.createOnce(actor.id, dto);
+        return await this.createOnce(actor.id, dto, deliveryPrice);
       } catch (error) {
         if (!this.isUniqueViolation(error)) {
           throw error;
@@ -400,9 +435,13 @@ export class BookingService {
     );
   }
 
-  private createOnce(customerId: number, dto: CreateBookingDto) {
+  private createOnce(
+    customerId: number,
+    dto: CreateBookingDto,
+    deliveryPrice: number | null,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      const prepared = await this.prepare(tx, customerId, dto, true);
+      const prepared = await this.prepare(tx, customerId, dto, true, deliveryPrice);
       const { service } = prepared;
 
       if (prepared.promotionId !== null) {
@@ -428,6 +467,7 @@ export class BookingService {
           estimated_delivery_at: prepared.estimatedDeliveryAt,
           estimated_weight_kg: dto.estimated_weight_kg,
           estimated_price: prepared.estimatedPrice,
+          delivery_price: prepared.deliveryPrice,
           discount_amount: prepared.discount,
           promotion_id: prepared.promotionId,
           special_instructions: dto.special_instructions,

@@ -26,6 +26,7 @@ function setup() {
   const scheduleService = { findSlot: vi.fn() };
   const promotionService = { evaluate: vi.fn(), consume: vi.fn(), release: vi.fn() };
   const paymentService = { onBookingCancelled: vi.fn(), refundBooking: vi.fn() };
+  const deliveryFeeService = { quote: vi.fn() };
 
   prisma.$transaction.mockImplementation(async (arg: unknown) => {
     if (typeof arg === 'function') return arg(prisma);
@@ -38,16 +39,17 @@ function setup() {
     scheduleService as never,
     promotionService as never,
     paymentService as never,
+    deliveryFeeService as never,
   );
 
-  return { service, prisma, storeService, scheduleService, promotionService, paymentService };
+  return { service, prisma, storeService, scheduleService, promotionService, paymentService, deliveryFeeService };
 }
 
 function dto(overrides: Record<string, unknown> = {}) {
   return {
     store_id: 1,
     service_id: 10,
-    pickup_date: '2026-11-05',
+    pickup_date: '2026-11-03',
     slot_start: '10:00',
     in_store: true,
     estimated_weight_kg: 2,
@@ -106,9 +108,46 @@ describe('BookingService', () => {
         slots_left: 2,
         subtotal: 30000,
         discount_amount: 0,
+        delivery_price: null,
         estimated_price: 30000,
       });
       expect(prisma.services.findFirst).toHaveBeenCalled();
+    });
+
+    it('adds the server-computed delivery fee to the estimated price', async () => {
+      const { service, prisma, scheduleService, deliveryFeeService } = setup();
+      prisma.services.findFirst.mockResolvedValue(serviceRecord());
+      scheduleService.findSlot.mockResolvedValue({ start: '10:00', end: '11:00', capacity: 3 });
+      prisma.addresses.count.mockResolvedValue(2);
+      deliveryFeeService.quote.mockResolvedValue({ total_fee: 40000 });
+
+      await expect(
+        service.quote(
+          { id: 20, role: 'customer' },
+          dto({ in_store: false, pickup_address_id: 5, delivery_address_id: 6 }),
+        ),
+      ).resolves.toMatchObject({ subtotal: 30000, delivery_price: 40000, estimated_price: 70000 });
+      expect(deliveryFeeService.quote).toHaveBeenCalledWith(20, 1, 5, 6);
+    });
+
+    it('delivers to the pickup address when no delivery address is given', async () => {
+      const { service, prisma, scheduleService, deliveryFeeService } = setup();
+      prisma.services.findFirst.mockResolvedValue(serviceRecord());
+      scheduleService.findSlot.mockResolvedValue({ start: '10:00', end: '11:00', capacity: 3 });
+      prisma.addresses.count.mockResolvedValue(1);
+      deliveryFeeService.quote.mockResolvedValue({ total_fee: 30000 });
+
+      await service.quote({ id: 20, role: 'customer' }, dto({ in_store: false, pickup_address_id: 5 }));
+      expect(deliveryFeeService.quote).toHaveBeenCalledWith(20, 1, 5, 5);
+    });
+
+    it('does not compute a delivery fee for in-store bookings', async () => {
+      const { service, prisma, scheduleService, deliveryFeeService } = setup();
+      prisma.services.findFirst.mockResolvedValue(serviceRecord());
+      scheduleService.findSlot.mockResolvedValue({ start: '10:00', end: '11:00', capacity: 3 });
+
+      await service.quote({ id: 20, role: 'customer' }, dto());
+      expect(deliveryFeeService.quote).not.toHaveBeenCalled();
     });
 
     it('rejects invalid pickup date', async () => {
@@ -163,7 +202,7 @@ describe('BookingService', () => {
       const { service, prisma, scheduleService } = setup();
       prisma.services.findFirst.mockResolvedValue(serviceRecord());
       scheduleService.findSlot.mockResolvedValue({ start: '10:00', end: '11:00', capacity: 3 });
-      prisma.bookings.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
+      prisma.bookings.count.mockResolvedValueOnce(0).mockResolvedValueOnce(5);
       await expect(service.quote({ id: 20, role: 'customer' }, dto())).rejects.toThrow('unpaid bookings');
     });
 
@@ -187,6 +226,40 @@ describe('BookingService', () => {
       expect(result).toEqual({ id: 1 });
       expect(createOnce).toHaveBeenCalledTimes(1);
       expect(prisma.bookings.findMany).toHaveBeenCalled();
+    });
+
+    it('computes the delivery fee once, before the transaction, and reuses it on retries', async () => {
+      const { service, deliveryFeeService } = setup();
+      deliveryFeeService.quote.mockResolvedValue({ total_fee: 40000 });
+      const createOnce = vi
+        .spyOn(service as any, 'createOnce')
+        .mockRejectedValueOnce(new Error('duplicate'))
+        .mockResolvedValueOnce({ id: 3 });
+      vi.spyOn(service as any, 'isUniqueViolation').mockReturnValue(true);
+      const input = dto({ in_store: false, pickup_address_id: 5 });
+
+      await service.create({ id: 20, role: 'customer' }, input);
+
+      expect(deliveryFeeService.quote).toHaveBeenCalledTimes(1);
+      expect(createOnce).toHaveBeenNthCalledWith(1, 20, input, 40000);
+      expect(createOnce).toHaveBeenNthCalledWith(2, 20, input, 40000);
+    });
+
+    it('stores the delivery price and includes it in the estimated price', async () => {
+      const { service, prisma, scheduleService, deliveryFeeService } = setup();
+      prisma.services.findFirst.mockResolvedValue(serviceRecord());
+      scheduleService.findSlot.mockResolvedValue({ start: '10:00', end: '11:00', capacity: 3 });
+      prisma.addresses.count.mockResolvedValue(1);
+      deliveryFeeService.quote.mockResolvedValue({ total_fee: 30000 });
+      prisma.bookings.create.mockResolvedValue({ ...booking({ in_store: false }), booking_items: [] });
+
+      await service.create({ id: 20, role: 'customer' }, dto({ in_store: false, pickup_address_id: 5 }));
+
+      expect(prisma.bookings.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ delivery_price: 30000, estimated_price: 60000 }),
+        }),
+      );
     });
 
     it('retries unique violations and succeeds on a later attempt', async () => {

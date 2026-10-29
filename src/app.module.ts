@@ -13,6 +13,7 @@ import { LaundryServiceModule } from './modules/laundry-service/laundry-service.
 import { PromotionModule } from './modules/promotion/promotion.module.js';
 import { BookingModule } from './modules/booking/booking.module.js';
 import { PaymentModule } from './modules/payment/payment.module.js';
+import { DeliveryModule } from './modules/delivery-trip/delivery.module.js';
 import { validateEnv } from './config/env.validation.js';
 import { EmailModule } from './utils/email/email.module.js';
 
@@ -40,6 +41,7 @@ import { EmailModule } from './utils/email/email.module.js';
     PromotionModule,
     BookingModule,
     PaymentModule,
+    DeliveryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
