@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
@@ -64,6 +65,32 @@ export class BookingController {
     @Query() query: QueryBookingDto,
   ) {
     return this.bookingService.findManageable(user, query);
+  }
+
+  @Get("staff")
+  @Roles("laundry_staff")
+  async getStaffBookings(
+    @CurrentUser("id") staffId: number,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("limit", new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.bookingService.getStaffBookings(
+      staffId,
+      page,
+      limit,
+    );
+  }
+
+  @Get("staff/:bookingId")
+  @Roles("laundry_staff")
+  async getStaffBookingDetail(
+    @CurrentUser("id") staffId: number,
+    @Param("bookingId", ParseIntPipe) bookingId: number,
+  ) {
+    return this.bookingService.getStaffBookingDetail(
+      staffId,
+      bookingId,
+    );
   }
 
   // GET /bookings/:id — chủ đơn, staff của cửa hàng, admin

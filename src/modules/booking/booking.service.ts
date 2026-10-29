@@ -344,6 +344,20 @@ export class BookingService {
     };
   }
 
+  // Kiểm tra phạm vi cửa hàng staff có thể truy cập
+  private async getStaffStoreIds(staffId: number): Promise<number[]> {
+    const assignments = await this.prisma.staff_assignments.findMany({
+      where: {
+        staff_id: staffId,
+      },
+      select: {
+        store_id: true,
+      },
+    });
+
+    return assignments.map((assignment) => assignment.store_id);
+  }
+
   /** Khách xem trước giá và chỗ trống, không tạo đơn, không trừ lượt mã. */
   async quote(actor: Actor, dto: CreateBookingDto) {
     const prepared = await this.prepare(this.prisma, actor.id, dto, false);
@@ -705,5 +719,198 @@ export class BookingService {
     const updated = await this.getOrThrow(id);
 
     return this.serialize(updated, updated.booking_items);
+  }
+
+  async getStaffBookings(
+    staffId: number,
+    page = 1,
+    limit = 20,
+  ) {
+    const storeIds = await this.getStaffStoreIds(staffId);
+
+    if (storeIds.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const skip = (safePage - 1) * safeLimit;
+
+    const where = {
+      store_id: {
+        in: storeIds,
+      },
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.bookings.findMany({
+        where,
+        skip,
+        take: safeLimit,
+        orderBy: {
+          created_at: "desc",
+        },
+        select: {
+          id: true,
+          booking_code: true,
+          status: true,
+          scheduled_pickup_start: true,
+          scheduled_pickup_end: true,
+          estimated_delivery_at: true,
+          estimated_price: true,
+          created_at: true,
+
+          service_name: true,
+          pricing_unit: true,
+          estimated_weight_kg: true,
+
+          users_bookings_customer_idTousers: {
+            select: {
+              id: true,
+              full_name: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+
+      this.prisma.bookings.count({ where }),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
+  async getStaffBookingDetail(
+    staffId: number,
+    bookingId: number,
+  ) {
+    const storeIds = await this.getStaffStoreIds(staffId);
+
+    if (storeIds.length === 0) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    const booking = await this.prisma.bookings.findFirst({
+      where: {
+        id: bookingId,
+        store_id: {
+          in: storeIds,
+        },
+      },
+      select: {
+        id: true,
+        booking_code: true,
+        status: true,
+
+        in_store: true,
+
+        scheduled_pickup_start: true,
+        scheduled_pickup_end: true,
+        estimated_delivery_at: true,
+
+        estimated_weight_kg: true,
+        actual_weight_kg: true,
+
+        estimated_price: true,
+        final_price: true,
+        discount_amount: true,
+
+        special_instructions: true,
+        cancellation_reason: true,
+        created_at: true,
+        updated_at: true,
+
+        service_name: true,
+        pricing_unit: true,
+        unit_price: true,
+        delivery_price: true,
+
+        users_bookings_customer_idTousers: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+          },
+        },
+
+        addresses_bookings_pickup_address_idToaddresses: {
+          select: {
+            recipient_name: true,
+            phone: true,
+            address_line: true,
+            ward: true,
+            district: true,
+            city: true,
+          },
+        },
+
+        addresses_bookings_delivery_address_idToaddresses: {
+          select: {
+            recipient_name: true,
+            phone: true,
+            address_line: true,
+            ward: true,
+            district: true,
+            city: true,
+          },
+        },
+
+        booking_items: {
+          select: {
+            id: true,
+            item_name: true,
+            category: true,
+            quantity: true,
+            unit_price: true,
+            note: true,
+          },
+          orderBy: {
+            id: "asc",
+          },
+        },
+
+        services: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            pricing_unit: true,
+            unit_price: true,
+          },
+        },
+
+        laundry_stores: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            address: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    return booking;
   }
 }
