@@ -1,37 +1,132 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Laundry Booking System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API backend cho hệ thống đặt lịch giặt là: khách hàng đặt đơn giặt (lấy tại cửa hàng hoặc giao nhận tận nơi), thanh toán online, cửa hàng và nhân viên quản lý lịch, dịch vụ, khuyến mãi và trạng thái đơn.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Công nghệ
 
-## Description
+| Thành phần | Công nghệ |
+| --- | --- |
+| Framework | [NestJS](https://nestjs.com) 12, TypeScript, ESM |
+| Cơ sở dữ liệu | PostgreSQL qua [Prisma](https://www.prisma.io) 7 (`@prisma/adapter-pg`) |
+| Cache / rate limit | Redis (`ioredis`) |
+| Xác thực | JWT access token + refresh token (cookie), Passport |
+| Thanh toán | VNPay, MoMo |
+| Gửi email | Nodemailer |
+| Tác vụ nền | `@nestjs/schedule` |
+| Test | Vitest, Supertest, Postman |
+| Lint / format | oxlint, Prettier |
+| Package manager | pnpm |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Chức năng chính
 
-## Project setup
+- **Auth**: đăng ký, đăng nhập, đăng xuất, refresh token, xác thực email, quên / đặt lại mật khẩu, giới hạn tần suất request bằng Redis.
+- **User & Address**: hồ sơ cá nhân, đổi mật khẩu, sổ địa chỉ (có địa chỉ mặc định).
+- **Store & Store schedule**: cửa hàng, gán nhân viên, lịch mở cửa theo tuần, ngày ngoại lệ, tính slot còn trống.
+- **Laundry service**: dịch vụ theo từng cửa hàng và dịch vụ dùng chung.
+- **Promotion**: mã khuyến mãi theo phần trăm hoặc giá trị cố định.
+- **Booking**: báo giá, tạo đơn, truy vấn, chuyển trạng thái, hủy đơn.
+- **Payment**: tạo giao dịch VNPay / MoMo, nhận IPN và return, đồng bộ trạng thái và hoàn tiền tự động.
+- **Maps**: reverse geocode, tính khoảng cách.
+
+### Vai trò (`users_role_enum`)
+
+`customer`, `laundry_staff`, `shipper`, `admin`. Đăng ký chỉ tạo `customer`; các role còn lại được nâng quyền trực tiếp trong DB.
+
+### Quy tắc nghiệp vụ đặt lịch
+
+- Chỉ đặt trước tối đa 7 ngày.
+- Mỗi khách có tối đa 5 đơn chưa thanh toán.
+- Đơn `pending_payment` giữ chỗ 15 phút, quá hạn sẽ tự hủy.
+- Khách thanh toán đủ giá ước tính trước khi đơn được xác nhận; nhân viên có thể xác nhận thủ công cho trường hợp tiền mặt.
+- Hủy đơn muộn (dưới 2 giờ trước giờ lấy) vẫn được phép nhưng hoàn 0%; hủy đủ điều kiện hoàn 100% sẽ tự động hoàn tiền.
+- Mỗi đơn chỉ có một phiên thanh toán đang chờ tại một thời điểm.
+
+## Kiến trúc dự án
+
+```text
+src/
+├── main.ts                  # bootstrap: prefix /api, ValidationPipe, cookie-parser, CORS
+├── app.module.ts            # module gốc
+├── app.controller.ts        # GET /api (hello), GET /api/db-health
+├── config/
+│   └── env.validation.ts    # kiểm tra biến môi trường bắt buộc khi khởi động
+├── common/decorators/       # decorator dùng chung (vd chuẩn hóa email)
+├── prisma/                  # PrismaModule / PrismaService (kết nối PostgreSQL)
+├── redis/                   # RedisModule / RedisService
+├── generated/prisma/        # Prisma Client sinh tự động (không sửa tay)
+├── modules/                 # mỗi nghiệp vụ một module: controller + service + dto
+│   ├── auth/                # auth, guards (JWT, role, rate-limit), strategies,
+│   │                        # refresh_token, password_reset_token, email_verification_token
+│   ├── user/
+│   ├── address/
+│   ├── store/
+│   ├── store-schedule/
+│   ├── laundry-service/
+│   ├── promotion/
+│   ├── booking/
+│   └── payment/             # gateways (vnpay, momo), scheduler đồng bộ / hoàn tiền
+├── utils/                   # hàm thuần và tích hợp ngoài
+│   ├── address/  maps/  email/
+│   └── booking-rules.util.ts, promotion.util.ts, slot-capacity.util.ts
+└── types/                   # khai báo kiểu bổ sung (express.d.ts)
+
+prisma/
+├── schema.prisma            # schema DB
+└── sql/                     # file SQL thay đổi schema, áp dụng thủ công
+
+test/                        # e2e test (Vitest + Supertest)
+postman/                     # bộ test black-box API (533 case)
+docs/                        # báo cáo hệ thống
+```
+
+Quy ước: mỗi module có `*.module.ts`, `*.controller.ts`, `*.service.ts`, thư mục `dto/` (validate bằng `class-validator`) và file `*.spec.ts` đặt cạnh mã nguồn. Toàn bộ route có tiền tố `/api`.
+
+## Cài đặt và chạy
+
+### Yêu cầu
+
+- Node.js và [pnpm](https://pnpm.io)
+- PostgreSQL
+- Redis
+
+### 1. Cài dependencies
 
 ```bash
 $ pnpm install
 ```
 
-## Compile and run the project
+Bước `postinstall` tự chạy `prisma generate` để sinh Prisma Client vào `src/generated/prisma`.
+
+### 2. Cấu hình môi trường
+
+```bash
+# Linux / macOS / Git Bash
+$ cp .env.example .env
+
+# Windows PowerShell
+> Copy-Item .env.example .env
+```
+
+Các biến **bắt buộc** (thiếu thì app không khởi động, xem [env.validation.ts](src/config/env.validation.ts)):
+
+`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `PASSWORD_RESET_TOKEN_SECRET`, `EMAIL_VERIFICATION_TOKEN_SECRET`, `REDIS_KEY_SECRET`.
+
+Các nhóm biến khác trong `.env.example`:
+
+- `REDIS_*`: kết nối Redis.
+- `MAIL_*`: gửi email xác thực và đặt lại mật khẩu.
+- `VNPAY_*`, `MOMO_*`, `PAYMENT_RESULT_URL`: cổng thanh toán. Không bắt buộc khi dev, thiếu key thì cổng tương ứng trả 503. Cổng thanh toán được viết theo tài liệu, chưa kiểm chứng với sandbox thật.
+- `RATE_LIMIT_ENABLED`: đặt `false` để tắt giới hạn tần suất khi dev (production luôn bật).
+
+### 3. Chuẩn bị database
+
+Dự án không dùng `prisma migrate`. Thay đổi schema được viết thành file SQL trong [prisma/sql/](prisma/sql/) (đặt tên theo ngày) và áp dụng thủ công vào database theo thứ tự. Sau khi sửa [prisma/schema.prisma](prisma/schema.prisma), chạy lại:
+
+```bash
+$ pnpm run prisma:generate
+```
+
+### 4. Chạy ứng dụng
 
 ```bash
 # development
@@ -40,88 +135,111 @@ $ pnpm run start
 # watch mode
 $ pnpm run start:dev
 
-# production mode
+# production mode (cần build trước)
+$ pnpm run build
 $ pnpm run start:prod
 ```
 
-## Run tests
+Mặc định server chạy ở `http://localhost:3000` (đổi bằng `PORT`). Kiểm tra nhanh:
+
+- `GET /api`: trả `Hello World!`
+- `GET /api/db-health`: trạng thái kết nối database
+
+## Các lệnh thường dùng
+
+| Lệnh | Mô tả |
+| --- | --- |
+| `pnpm run start:dev` | Chạy dev, tự reload |
+| `pnpm run build` | Sinh Prisma Client và build ra `dist/` |
+| `pnpm run lint` | Lint bằng oxlint |
+| `pnpm run format` | Format bằng Prettier |
+| `pnpm run test` | Unit test (white-box) |
+| `pnpm run test:cov` | Unit test kèm coverage |
+| `pnpm run test:e2e` | E2E test |
+
+## Kiểm thử
+
+Dự án có 3 lớp test:
+
+| Lớp | Công cụ | Vị trí | Cần DB / Redis |
+| --- | --- | --- | --- |
+| Unit (white-box) | Vitest | `src/**/*.spec.ts` | Không (mock hết phụ thuộc) |
+| E2E | Vitest + Supertest | `test/*.e2e-spec.ts` | Có, khởi tạo toàn bộ `AppModule` |
+| Black-box API | Postman / Newman | `postman/` | Có, cần server đang chạy |
+
+### Unit test (white-box)
+
+Các service được test độc lập, mọi phụ thuộc (Prisma, Redis, mailer, ...) đều được mock nên **không cần chạy database hay Redis**.
+
+**Cấu hình môi trường test.** Vitest chỉ nạp `.env.test` (và `.env.test.local` nếu có, file sau ghi đè file trước), không đọc `.env` của môi trường dev để tránh dùng nhầm DB / secret thật.
 
 ```bash
-# unit tests
+# Linux / macOS / Git Bash
+$ cp .env.test.example .env.test
+
+# Windows PowerShell
+> Copy-Item .env.test.example .env.test
+```
+
+Giá trị mặc định trong `.env.test.example` (secret giả, `RATE_LIMIT_ENABLED=false`, ...) đã đủ để chạy unit test. `.env.test` nằm trong `.gitignore`.
+
+**Chạy test.**
+
+```bash
+# chạy toàn bộ test một lần
 $ pnpm run test
 
-# e2e tests
-$ pnpm run test:e2e
+# chế độ watch
+$ pnpm run test:watch
 
-# test coverage
+# chạy một file cụ thể
+$ pnpm run test src/modules/booking/booking.service.spec.ts
+
+# chạy các test có tên khớp một chuỗi
+$ pnpm run test -t "tên test case"
+
+# debug (dừng tại breakpoint, chạy tuần tự)
+$ pnpm run test:debug
+```
+
+**Coverage.**
+
+```bash
 $ pnpm run test:cov
 ```
 
-## Deployment
+Kết quả in ra terminal và ghi vào thư mục `coverage/` (đã nằm trong `.gitignore`).
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+**Các nhóm test hiện có.**
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+| Nhóm | Vị trí |
+| --- | --- |
+| Auth (service, guard, strategy, token) | `src/modules/auth/**/*.spec.ts` |
+| Booking (service, quy tắc đặt lịch) | `src/modules/booking/*.spec.ts` |
+| Payment, Promotion, Address, User | `src/modules/{payment,promotion,address,user}/*.spec.ts` |
+| Store, Store schedule, Laundry service | `src/modules/{store,store-schedule,laundry-service}/*.spec.ts` |
+| Hàm tiện ích (khoảng cách, slot, khuyến mãi, địa chỉ) | `src/utils/**/*.spec.ts` |
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+Lưu ý: nếu test báo thiếu biến môi trường, kiểm tra `.env.test` đã có ở thư mục gốc và chạy lệnh từ thư mục gốc dự án.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### E2E test
 
-## Observability
+[test/app.e2e-spec.ts](test/app.e2e-spec.ts) khởi tạo toàn bộ `AppModule` và áp dụng cùng cấu hình như `main.ts` (tiền tố `/api`, `ValidationPipe`), rồi kiểm tra các luồng bị chặn trước khi chạm dữ liệu: route gốc, guard trả 401 khi thiếu token, validation trả 400 khi thiếu hoặc thừa field.
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+Cần điền thêm vào `.env.test`:
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+- `DATABASE_URL` trỏ tới một database test riêng (bắt buộc, xem `env.validation.ts`). Không dùng DB dev.
+- Redis chạy ở `REDIS_HOST` / `REDIS_PORT` (mặc định `localhost:6379`, `REDIS_DB=1`).
 
 ```bash
-$ pnpm install @nestjs/observe
+$ pnpm run test:e2e
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+Lưu ý: khi `NODE_ENV=test` (Vitest tự đặt), `ConfigModule` trong `AppModule` đọc `.env.test.local` và `.env.test` thay cho `.env`, nên e2e không dùng nhầm cấu hình dev. Biến nào không khai báo trong `.env.test` (ví dụ `MAIL_*`) sẽ không có giá trị.
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+### Black-box API (Postman)
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Bộ 533 test case nằm trong [postman/](postman/). Xem [postman/README.md](postman/README.md) để biết cách chuẩn bị 3 tài khoản test, tắt rate limit và chạy bằng Postman hoặc Newman.
 
 ## Quy tắc đặt Redis key
 
