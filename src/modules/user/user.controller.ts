@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard.js';
@@ -45,6 +46,30 @@ export class UserController {
       dto.current_password,
       dto.new_password,
     );
+  }
+
+  /**
+   * GET /api/users/me/working-store
+   * Lấy cửa hàng STAFF được phân công làm việc.
+   */
+  @Get("me/working-store")
+  @Roles("laundry_staff")
+  async getWorkingStore(@CurrentUser('id') userId: number) {
+    return this.userService.getWorkingStore(userId);
+  }
+
+  /**
+   * GET /api/users/customers/:customerId
+   * Lấy thông tin khách hàng và địa chỉ thuộc các đơn
+   * tại cửa hàng STAFF được phân công.
+   */
+  @Get("customers/:customerId")
+  @Roles("laundry_staff")
+  async getCustomerByStaff(
+    @CurrentUser("id") userId: number,
+    @Param("customerId", ParseIntPipe) customerId: number,
+  ) {
+    return this.userService.getCustomerByStaff(userId, customerId);
   }
 
   // GET /users — admin

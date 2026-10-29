@@ -172,4 +172,149 @@ export class UserService {
       select: { id: true },
     });
   }
+
+  async getCustomerByStaff(staffId: number, customerId: number) {
+    // Kiểm tra STAFF tồn tại và đúng vai trò.
+    const staff = await this.prisma.users.findUnique({
+      where: { id: staffId },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!staff || staff.role !== "laundry_staff") {
+      throw new NotFoundException("Staff not found");
+    }
+
+    // Lấy danh sách cửa hàng STAFF được phân công.
+    const assignments = await this.prisma.staff_assignments.findMany({
+      where: {
+        staff_id: staffId,
+      },
+      select: {
+        store_id: true,
+      },
+    });
+
+    if (assignments.length === 0) {
+      throw new NotFoundException("Staff has no assigned store");
+    }
+
+    const storeIds = assignments.map((assignment) => assignment.store_id);
+
+    // Chỉ tìm khách hàng có đơn tại cửa hàng STAFF phụ trách.
+    const customer = await this.prisma.users.findFirst({
+      where: {
+        id: customerId,
+        role: "customer",
+      },
+      select: {
+        id: true,
+        full_name: true,
+        date_of_birth: true,
+        phone: true,
+        email: true,
+        status: true,
+
+        bookings_bookings_customer_idTousers: {
+          where: {
+            store_id: {
+              in: storeIds,
+            },
+          },
+          select: {
+            id: true,
+            booking_code: true,
+            status: true,
+
+            addresses_bookings_pickup_address_idToaddresses: {
+              select: {
+                recipient_name: true,
+                phone: true,
+                address_line: true,
+                ward: true,
+                district: true,
+                city: true,
+              },
+            },
+
+            addresses_bookings_delivery_address_idToaddresses: {
+              select: {
+                recipient_name: true,
+                phone: true,
+                address_line: true,
+                ward: true,
+                district: true,
+                city: true,
+              },
+            },
+          },
+          orderBy: {
+            id: "desc",
+          },
+          take: 20,
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException("Customer not found");
+    }
+
+    return customer;
+  }
+
+  /**
+   * Lấy cửa hàng STAFF đang làm việc.
+   * Mỗi STAFF có thể được phân công trên nhiều cửa hàng.
+   */
+  async getWorkingStore(staffId: number) {
+    const staff = await this.prisma.users.findUnique({
+      where: { id: staffId },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!staff || staff.role !== "laundry_staff") {
+      throw new NotFoundException("Staff not found");
+    }
+
+    const assignments = await this.prisma.staff_assignments.findMany({
+      where: {
+        staff_id: staffId,
+        laundry_stores: {
+          status: "active",
+        },
+      },
+      select: {
+        id: true,
+        assigned_at: true,
+        laundry_stores: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            description: true,
+            image_url: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: {
+        assigned_at: "desc",
+      },
+    });
+
+    if (assignments.length === 0) {
+      throw new NotFoundException(
+        "Staff has no active assigned store",
+      );
+    }
+
+    return assignments.map((assignment) => assignment.laundry_stores);
+  }
 }
