@@ -20,7 +20,12 @@ import { EmailModule } from './utils/email/email.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      // Khi test (Vitest đặt NODE_ENV=test) không đọc `.env` của môi trường dev,
+      // khớp với vitest.env.ts. File đứng trước được ưu tiên.
+      envFilePath:
+        process.env.NODE_ENV === 'test'
+          ? ['.env.test.local', '.env.test']
+          : '.env',
       validate: validateEnv,
     }),
     ScheduleModule.forRoot(),
