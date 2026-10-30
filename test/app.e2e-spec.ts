@@ -53,6 +53,12 @@ describe('App (e2e)', () => {
     return request(app.getHttpServer()).get('/api/addresses').expect(401);
   });
 
+  it('GET /api/stores/1/machines?page=1&limit=100 không có token -> 401', () => {
+    return request(app.getHttpServer())
+      .get('/api/stores/1/machines?page=1&limit=100')
+      .expect(401);
+  });
+
   it('GET /api/users/me không có token -> 401', () => {
     return request(app.getHttpServer()).get('/api/users/me').expect(401);
   });

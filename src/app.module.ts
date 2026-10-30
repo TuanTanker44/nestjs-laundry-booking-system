@@ -8,6 +8,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AddressModule } from './modules/address/address.module.js';
 import { StoreModule } from './modules/store/store.module.js';
+import { MachineModule } from './modules/machine/machine.module.js';
 import { StoreScheduleModule } from './modules/store-schedule/store-schedule.module.js';
 import { LaundryServiceModule } from './modules/laundry-service/laundry-service.module.js';
 import { PromotionModule } from './modules/promotion/promotion.module.js';
@@ -36,6 +37,7 @@ import { EmailModule } from './utils/email/email.module.js';
     AuthModule,
     AddressModule,
     StoreModule,
+    MachineModule,
     StoreScheduleModule,
     LaundryServiceModule,
     PromotionModule,
