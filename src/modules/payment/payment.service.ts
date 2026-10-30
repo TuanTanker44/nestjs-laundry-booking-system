@@ -17,6 +17,7 @@ import { StoreService } from '../store/store.service.js';
 import { MomoService } from './gateways/momo.service.js';
 import { VnpayService } from './gateways/vnpay.service.js';
 import type { CreatePaymentDto } from './dto/create-payment.dto.js';
+import type { QueryStorePaymentDto } from './dto/query-store-payment.dto.js';
 import {
   asString,
   isOnlinePaymentMethod,
@@ -731,6 +732,50 @@ export class PaymentService {
   }
 
   // ---------------------------------------------------------------------- Xem
+
+  /** Giao dịch thanh toán của mọi đơn thuộc một cửa hàng: admin hoặc staff được gán. */
+  async listByStore(actor: Actor, storeId: number, query: QueryStorePaymentDto) {
+    await this.storeService.assertCanManageStore(actor, storeId);
+
+    const { page, limit, status, method } = query;
+    const where: Prisma.paymentsWhereInput = {
+      bookings: { store_id: storeId },
+      ...(status && { status }),
+      ...(method && { method }),
+    };
+
+    const [total, payments] = await this.prisma.$transaction([
+      this.prisma.payments.count({ where }),
+      this.prisma.payments.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        // Không trả raw_response / payment_url: dữ liệu thô của cổng và link trả tiền của khách.
+        select: {
+          id: true,
+          booking_id: true,
+          payment_type: true,
+          amount: true,
+          method: true,
+          status: true,
+          paid_at: true,
+          refunded_at: true,
+          created_at: true,
+          bookings: { select: { booking_code: true } },
+        },
+      }),
+    ]);
+
+    return {
+      data: payments.map(({ bookings, amount, ...payment }) => ({
+        ...payment,
+        booking_code: bookings.booking_code,
+        amount: amount.toNumber(),
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
 
   /** Lịch sử thanh toán của một đơn: chủ đơn, staff của cửa hàng, admin. */
   async listByBooking(actor: Actor, bookingId: number) {

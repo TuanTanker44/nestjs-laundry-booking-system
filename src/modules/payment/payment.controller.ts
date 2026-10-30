@@ -21,6 +21,7 @@ import { Roles } from '../auth/decorators/role.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { PaymentService } from './payment.service.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
+import { QueryStorePaymentDto } from './dto/query-store-payment.dto.js';
 import {
   isOnlinePaymentMethod,
   type CallbackOutcome,
@@ -74,6 +75,18 @@ export class PaymentController {
     @Query('booking_id', ParseIntPipe) bookingId: number,
   ) {
     return { data: await this.paymentService.listByBooking(user, bookingId) };
+  }
+
+  // GET /payments/stores/:storeId?status=&method=&page=&limit= — admin / staff được gán
+  @Get('stores/:storeId')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  @Roles('admin', 'laundry_staff')
+  listByStore(
+    @CurrentUser() user: Express.User,
+    @Param('storeId', ParseIntPipe) storeId: number,
+    @Query() query: QueryStorePaymentDto,
+  ) {
+    return this.paymentService.listByStore(user, storeId, query);
   }
 
   // GET /payments/vnpay/ipn — server VNPay gọi (khai báo trước ':method/return')
