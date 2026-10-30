@@ -698,10 +698,18 @@ export class BookingService {
       );
     }
 
-    if (to === 'no_show' && storeNow() < booking.scheduled_pickup_start) {
-      throw new BadRequestException(
-        'A booking cannot be marked as no_show before its pickup time',
-      );
+    if (to === 'no_show') {
+      if (!booking.scheduled_pickup_start) {
+        throw new BadRequestException(
+          'A booking without a scheduled pickup time cannot be marked as no_show',
+        );
+      }
+
+      if (storeNow() < booking.scheduled_pickup_start) {
+        throw new BadRequestException(
+          'A booking cannot be marked as no_show before its pickup time',
+        );
+      }
     }
 
     if (to !== 'processing' && dto.actual_weight_kg !== undefined) {

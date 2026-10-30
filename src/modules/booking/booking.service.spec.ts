@@ -310,6 +310,12 @@ describe('BookingService', () => {
       await expect(service.changeStatus({ id: 1, role: 'laundry_staff' }, 7, { status: 'no_show' } as any)).rejects.toThrow('before its pickup time');
     });
 
+    it('rejects no-show when no pickup time is scheduled', async () => {
+      const { service } = setup();
+      vi.spyOn(service as any, 'getOrThrow').mockResolvedValue(booking({ scheduled_pickup_start: null }));
+      await expect(service.changeStatus({ id: 1, role: 'laundry_staff' }, 7, { status: 'no_show' } as any)).rejects.toThrow('without a scheduled pickup time');
+    });
+
     it('rejects actual weight when target is not processing', async () => {
       const { service } = setup();
       vi.spyOn(service as any, 'getOrThrow').mockResolvedValue(booking());

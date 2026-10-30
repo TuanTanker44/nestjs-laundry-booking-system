@@ -72,8 +72,8 @@ model bookings {
   in_store                                          Boolean                    @default(true)
   pickup_address_id                                 Int?
   delivery_address_id                               Int?
-  scheduled_pickup_start                            DateTime                   @db.Timestamp(6)
-  scheduled_pickup_end                              DateTime                   @db.Timestamp(6)
+  scheduled_pickup_start                            DateTime?                  @db.Timestamp(6)
+  scheduled_pickup_end                              DateTime?                  @db.Timestamp(6)
   estimated_delivery_at                             DateTime?                  @db.Timestamp(6)
   status                                            bookings_status_enum       @default(pending_payment)
   estimated_weight_kg                               Decimal?                   @db.Decimal(6, 2)

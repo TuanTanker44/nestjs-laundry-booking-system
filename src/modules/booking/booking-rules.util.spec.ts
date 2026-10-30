@@ -95,6 +95,19 @@ describe('booking-rules.util', () => {
       ).toBe(100);
     });
 
+    it('khách hủy đơn chưa có giờ lấy được hoàn 100%', () => {
+      const now = new Date('2026-11-01T09:59:00.000Z');
+
+      expect(
+        refundPercent({
+          status: 'confirmed',
+          pickupStart: null,
+          now,
+          cancelledByCustomer: true,
+        }),
+      ).toBe(100);
+    });
+
     it('đơn chưa thanh toán không có gì để hoàn', () => {
       const now = new Date('2026-10-30T00:00:00.000Z');
 

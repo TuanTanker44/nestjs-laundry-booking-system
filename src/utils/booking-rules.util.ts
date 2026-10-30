@@ -84,7 +84,7 @@ export function computeTotal(
  */
 export function refundPercent(params: {
   status: bookings_status_enum;
-  pickupStart: Date;
+  pickupStart: Date | null;
   now: Date;
   cancelledByCustomer: boolean;
 }): number {
@@ -93,6 +93,10 @@ export function refundPercent(params: {
   }
 
   if (!params.cancelledByCustomer) {
+    return 100;
+  }
+
+  if (!params.pickupStart) {
     return 100;
   }
 

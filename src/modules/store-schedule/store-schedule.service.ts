@@ -304,6 +304,10 @@ export class StoreScheduleService {
     const bookedByStart = new Map<string, number>();
 
     for (const booking of bookings) {
+      if (!booking.scheduled_pickup_start) {
+        continue;
+      }
+
       const key = dateToTime(booking.scheduled_pickup_start);
 
       bookedByStart.set(key, (bookedByStart.get(key) ?? 0) + 1);
