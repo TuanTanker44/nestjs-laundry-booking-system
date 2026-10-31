@@ -42,15 +42,18 @@ export class AddressService {
   }
 
   /**
-   * Geocoding theo cơ chế best-effort.
-   * Nếu dịch vụ bản đồ lỗi, vẫn cho phép lưu địa chỉ,
-   * nhưng tọa độ sẽ là null.
+   * Nếu dịch vụ bản đồ lỗi, dùng tọa độ client gửi kèm.
+   * Không có tọa độ dự phòng hợp lệ thì từ chối lưu địa chỉ.
    */
-  private async tryGeocode(data: {
+  private async resolveCoordinates(data: {
     address_line: string;
     ward?: string | null;
     district?: string | null;
     city?: string | null;
+    latitude?: number;
+    longitude?: number;
+    lat?: number;
+    long?: number;
   }) {
     try {
       const coordinates = await this.mapsService.geocodeAddress(
@@ -68,10 +71,24 @@ export class AddressService {
         }`,
       );
 
-      return {
-        latitude: null,
-        longitude: null,
-      };
+      const latitude = data.latitude ?? data.lat;
+      const longitude = data.longitude ?? data.long;
+      if (
+        typeof latitude === 'number' &&
+        Number.isFinite(latitude) &&
+        typeof longitude === 'number' &&
+        Number.isFinite(longitude) &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180
+      ) {
+        return { latitude, longitude };
+      }
+
+      throw new BadRequestException(
+        'Could not determine address coordinates. Please provide valid latitude and longitude',
+      );
     }
   }
 
@@ -94,7 +111,7 @@ export class AddressService {
       throw new ConflictException('Address already exists');
     }
 
-    const coordinates = await this.tryGeocode(dto);
+    const coordinates = await this.resolveCoordinates(dto);
 
     return this.prisma.$transaction(async (tx) => {
       const count = await tx.addresses.count({
@@ -184,10 +201,21 @@ export class AddressService {
       nextAddress.district !== current.district ||
       nextAddress.city !== current.city;
 
-    // Chỉ gọi Maps API nếu thông tin vị trí thực sự thay đổi.
-    const coordinates = locationChanged
-      ? await this.tryGeocode(nextAddress)
-      : null;
+    // Lấy lại tọa độ khi đổi vị trí hoặc client gửi tọa độ dự phòng.
+    const coordinates =
+      locationChanged ||
+      dto.latitude !== undefined ||
+      dto.longitude !== undefined ||
+      dto.lat !== undefined ||
+      dto.long !== undefined
+        ? await this.resolveCoordinates({
+            ...nextAddress,
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            lat: dto.lat,
+            long: dto.long,
+          })
+        : null;
 
     // Luôn phải còn đúng một địa chỉ mặc định: muốn đổi thì đặt địa chỉ khác làm mặc định.
     if (dto.is_default === false && current.is_default) {
@@ -226,9 +254,9 @@ export class AddressService {
           ...(becomesDefault && { is_default: true }),
 
           // Không giữ tọa độ cũ khi địa chỉ đã thay đổi.
-          ...(locationChanged && {
-            latitude: coordinates?.latitude ?? null,
-            longitude: coordinates?.longitude ?? null,
+          ...(coordinates && {
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
           }),
         },
       });

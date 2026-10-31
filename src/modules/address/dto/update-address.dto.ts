@@ -1,11 +1,15 @@
 
 import {
   IsBoolean,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
   Matches,
+  Max,
+  Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateAddressDto {
@@ -48,6 +52,42 @@ export class UpdateAddressDto {
   @IsString()
   @MaxLength(100)
   city?: string | null;
+
+  // Tọa độ dự phòng khi geocoding lỗi; phải gửi đủ cả hai trường.
+  @ValidateIf(
+    (dto: UpdateAddressDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ValidateIf(
+    (dto: UpdateAddressDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  // Tương thích client gửi lat/long thay cho latitude/longitude.
+  @ValidateIf(
+    (dto: UpdateAddressDto) => dto.lat !== undefined || dto.long !== undefined,
+  )
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @ValidateIf(
+    (dto: UpdateAddressDto) => dto.lat !== undefined || dto.long !== undefined,
+  )
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  long?: number;
 
   @IsOptional()
   @IsBoolean()
