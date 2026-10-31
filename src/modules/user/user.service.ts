@@ -9,6 +9,8 @@ import { PrismaService } from "../../prisma/prisma.service.js";
 import { RefreshTokenService } from "../auth/refresh_token/refresh_token.service.js";
 import type { CreateUserDto } from "./dto/create-user.dto.js";
 import { AdminUpdateUserDto, UpdateProfileDto } from "./dto/update-user.dto.js";
+import type { Prisma } from '../../generated/prisma/client.js';
+import type { QueryShipperDto } from './dto/query-shipper.dto.js';
 
 const SAFE_USER_SELECT = {
   id: true,
@@ -46,6 +48,45 @@ export class UserService {
       select: SAFE_USER_SELECT,
       orderBy: { id: "asc" },
     });
+  }
+
+  async findShippers(query: QueryShipperDto) {
+    const { page, limit, status } = query;
+    const search = query.search?.trim();
+    const where: Prisma.usersWhereInput = {
+      role: 'shipper',
+      status,
+      ...(search && {
+        OR: [
+          { full_name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+        ],
+      }),
+    };
+
+    const [total, shippers] = await this.prisma.$transaction([
+      this.prisma.users.count({ where }),
+      this.prisma.users.findMany({
+        where,
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+          phone: true,
+          avatar_url: true,
+          status: true,
+        },
+        orderBy: [{ full_name: 'asc' }, { id: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: shippers,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   /**

@@ -14,6 +14,7 @@ import { StoreService } from '../store/store.service.js';
 import {
   STORE_UTC_OFFSET_MINUTES,
   parseDateOnly,
+  storeNow,
 } from '../store-schedule/schedule-time.util.js';
 import type { AssignMachineDto } from './dto/assign-machine.dto.js';
 import type { CreateMachineDto } from './dto/create-machine.dto.js';
@@ -126,11 +127,30 @@ export class MachineService {
   async findAll(actor: Actor, storeId: number, query: QueryMachineDto) {
     await this.storeService.assertCanManageStore(actor, storeId);
 
+    const slotBooking = query.booking_id === undefined ? null : await this.prisma.bookings.findFirst({
+      where: { id: query.booking_id, store_id: storeId },
+      select: { id: true, scheduled_pickup_start: true, scheduled_pickup_end: true },
+    });
+    if (query.booking_id !== undefined && !slotBooking) {
+      throw new NotFoundException('Booking not found');
+    }
+    const slot = slotBooking ? this.requireSlot(slotBooking) : null;
+
     const { page, limit, type, status } = query;
+    const slotReservations: Prisma.machine_assignmentsWhereInput | undefined = slot
+      ? { bookings: this.overlappingBookings(slot.start, slot.end) }
+      : undefined;
     const where: Prisma.machinesWhereInput = {
       store_id: storeId,
       ...(type && { type }),
-      ...(status && { status }),
+      ...(status && slot && (status === 'idle' || status === 'running')
+        ? {
+            status: { in: ['idle', 'running'] },
+            machine_assignments: status === 'idle'
+              ? { none: slotReservations }
+              : { some: slotReservations },
+          }
+        : status ? { status } : {}),
     };
 
     const [total, machines] = await this.prisma.$transaction([
@@ -144,8 +164,27 @@ export class MachineService {
       }),
     ]);
 
+    const reservations = slot ? await this.prisma.machine_assignments.findMany({
+      where: {
+        machines: { store_id: storeId },
+        bookings: this.overlappingBookings(slot.start, slot.end),
+      },
+      select: { machine_id: true, booking_id: true },
+    }) : [];
+
     return {
-      data: machines.map((machine) => this.serialize(machine)),
+      data: machines.map((machine) => ({
+        ...this.serialize(machine),
+        ...(slot && {
+          current_status: machine.status,
+          status: machine.status === 'maintenance' || machine.status === 'offline'
+            ? machine.status
+            : reservations.some((r) => r.machine_id === machine.id) ? 'running' : 'idle',
+          available_for_booking: !['maintenance', 'offline'].includes(machine.status)
+            && !reservations.some((r) => r.machine_id === machine.id && r.booking_id !== slotBooking!.id),
+          assigned_to_booking: reservations.some((r) => r.machine_id === machine.id && r.booking_id === slotBooking!.id),
+        }),
+      })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -230,12 +269,12 @@ export class MachineService {
     await this.getInStoreOrThrow(storeId, machineId);
 
     const { count } = await this.prisma.machines.deleteMany({
-      where: { id: machineId, machine_usage_logs: { none: {} } },
+      where: { id: machineId, machine_usage_logs: { none: {} }, machine_assignments: { none: {} } },
     });
 
     if (count === 0) {
       throw new ConflictException(
-        'This machine has usage history and cannot be deleted, set its status to "offline" instead',
+        'This machine has assignments or usage history and cannot be deleted, set its status to "offline" instead',
       );
     }
 
@@ -306,8 +345,103 @@ export class MachineService {
 
   // ------------------------------------------------------ Gán / nhả máy cho đơn
 
-  /** Staff gán thêm một máy cho đơn đang `processing` (vd. chuyển từ máy giặt sang máy sấy). */
+  private requireSlot(booking: {
+    scheduled_pickup_start: Date | null;
+    scheduled_pickup_end: Date | null;
+  }) {
+    const start = booking.scheduled_pickup_start;
+    const end = booking.scheduled_pickup_end;
+    if (!start || !end || start >= end) {
+      throw new BadRequestException('Booking must have a valid scheduled_pickup_start/end');
+    }
+    return { start, end };
+  }
+
+  private overlappingBookings(start: Date, end: Date): Prisma.bookingsWhereInput {
+    return {
+      status: { notIn: ['cancelled', 'no_show'] },
+      scheduled_pickup_start: { lt: end },
+      scheduled_pickup_end: { gt: start },
+    };
+  }
+
+  /** Khóa booking trước rồi máy, cùng thứ tự với luồng bắt đầu chạy máy. */
+  private async lockAssignment(tx: Prisma.TransactionClient, storeId: number, machineId: number, bookingId: number) {
+    const bookings = await tx.$queryRaw<{ id: number }[]>`
+      SELECT id FROM bookings WHERE id = ${bookingId} AND store_id = ${storeId} FOR UPDATE
+    `;
+    if (bookings.length === 0) throw new NotFoundException('Booking not found');
+    const machines = await tx.$queryRaw<{ id: number }[]>`
+      SELECT id FROM machines WHERE id = ${machineId} AND store_id = ${storeId} FOR UPDATE
+    `;
+    if (machines.length === 0) throw new NotFoundException('Machine not found');
+  }
+
+  /** Giữ máy theo lịch booking; không đổi trạng thái vận hành hiện tại của máy. */
   async assign(
+    actor: Actor,
+    storeId: number,
+    machineId: number,
+    dto: AssignMachineDto,
+  ) {
+    await this.storeService.assertCanManageStore(actor, storeId);
+    const assignment = await this.prisma.$transaction(async (tx) => {
+      await this.lockAssignment(tx, storeId, machineId, dto.booking_id);
+      const booking = await tx.bookings.findUniqueOrThrow({ where: { id: dto.booking_id } });
+      if (!['confirmed', 'picked_up', 'processing'].includes(booking.status)) {
+        throw new BadRequestException('Machines can only be assigned to confirmed, picked_up or processing bookings');
+      }
+      const { start, end } = this.requireSlot(booking);
+      if (end <= storeNow()) {
+        throw new BadRequestException('Cannot assign a machine to a booking whose time slot has ended');
+      }
+      const machine = await tx.machines.findUniqueOrThrow({ where: { id: machineId } });
+      if (machine.status === 'maintenance' || machine.status === 'offline') {
+        throw new ConflictException('Machine is unavailable for assignment');
+      }
+      const weight = booking.actual_weight_kg ?? booking.estimated_weight_kg;
+      if (weight && weight.toNumber() > machine.capacity_kg.toNumber()) {
+        throw new BadRequestException('Booking weight exceeds machine capacity');
+      }
+      const conflict = await tx.machine_assignments.findFirst({
+        where: {
+          machine_id: machineId,
+          booking_id: { not: booking.id },
+          bookings: this.overlappingBookings(start, end),
+        },
+        select: { id: true },
+      });
+      if (conflict) {
+        throw new ConflictException('Machine is already assigned to another booking in this time slot');
+      }
+      return tx.machine_assignments.upsert({
+        where: { machine_id_booking_id: { machine_id: machineId, booking_id: booking.id } },
+        create: { machine_id: machineId, booking_id: booking.id },
+        update: {},
+      });
+    });
+    return {
+      ...this.serialize(await this.getInStoreOrThrow(storeId, machineId)),
+      assignment,
+    };
+  }
+
+  async unassign(actor: Actor, storeId: number, machineId: number, bookingId: number) {
+    await this.storeService.assertCanManageStore(actor, storeId);
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockAssignment(tx, storeId, machineId, bookingId);
+      const usage = await tx.machine_usage_logs.findFirst({
+        where: { machine_id: machineId, booking_id: bookingId, ended_at: null },
+        select: { id: true },
+      });
+      if (usage) throw new ConflictException('Release the running machine before removing its assignment');
+      await tx.machine_assignments.deleteMany({ where: { machine_id: machineId, booking_id: bookingId } });
+      return { message: 'Machine assignment removed successfully' };
+    });
+  }
+
+  /** Bắt đầu sử dụng thực tế: máy phải rảnh và booking đang processing trong ca đã gán. */
+  async startAssigned(
     actor: Actor,
     storeId: number,
     machineId: number,
@@ -382,7 +516,7 @@ export class MachineService {
   /**
    * Gọi trong transaction đổi đơn sang `processing`. Có `machineId` thì gán đúng máy đó
    * (sai thì throw và cả transaction rollback); không có thì tự chọn máy giặt rảnh nhỏ nhất
-   * còn vừa đồ. Hết máy thì trả null: đơn vẫn xử lý được, staff gán máy sau.
+   * còn vừa đồ TRONG CÁC MÁY ĐÃ GIỮ CA cho booking. Hết máy thì trả null.
    */
   async assignForProcessing(
     tx: Prisma.TransactionClient,
@@ -398,6 +532,7 @@ export class MachineService {
         store_id: load.storeId,
         status: 'idle',
         type: { in: AUTO_ASSIGN_TYPES },
+        machine_assignments: { some: { booking_id: load.id } },
         ...(load.weightKg !== null && { capacity_kg: { gte: load.weightKg } }),
       },
       orderBy: [{ capacity_kg: 'asc' }, { id: 'asc' }],
@@ -456,7 +591,7 @@ export class MachineService {
     }
 
     if (!(await this.start(tx, machine.id, load.id))) {
-      throw new ConflictException('This machine is not available');
+      throw new ConflictException('Machine must be idle and assigned to this processing booking in its current time slot');
     }
 
     return { id: machine.id, name: machine.name };
@@ -468,6 +603,21 @@ export class MachineService {
     machineId: number,
     bookingId: number,
   ) {
+    const now = storeNow();
+    const assignment = await tx.machine_assignments.findFirst({
+      where: {
+        machine_id: machineId,
+        booking_id: bookingId,
+        bookings: {
+          status: 'processing',
+          scheduled_pickup_start: { lte: now },
+          scheduled_pickup_end: { gt: now },
+        },
+      },
+      select: { id: true },
+    });
+    if (!assignment) return false;
+
     const { count } = await tx.machines.updateMany({
       where: { id: machineId, status: 'idle' },
       data: { status: 'running' },

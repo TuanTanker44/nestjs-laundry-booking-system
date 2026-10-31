@@ -37,9 +37,42 @@ import { CreateBookingDto } from './dto/create-booking.dto.js';
 import { QueryBookingDto } from './dto/query-booking.dto.js';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto.js';
 import { CancelBookingDto } from './dto/cancel-booking.dto.js';
+import type { AssignShipperDto } from './dto/assign-shipper.dto.js';
 
 type BookingRecord = Prisma.bookingsGetPayload<object>;
 type ItemRecord = Prisma.booking_itemsGetPayload<object>;
+
+const deliveryTripSelect = {
+  id: true,
+  booking_id: true,
+  trip_type: true,
+  shipper_id: true,
+  address_id: true,
+  scheduled_time: true,
+  started_at: true,
+  completed_at: true,
+  status: true,
+  users: {
+    select: {
+      id: true,
+      full_name: true,
+      phone: true,
+      email: true,
+      avatar_url: true,
+    },
+  },
+} satisfies Prisma.delivery_tripsSelect;
+
+type DeliveryTripRecord = Prisma.delivery_tripsGetPayload<{ select: typeof deliveryTripSelect }>;
+
+const machineAssignmentSelect = {
+  id: true,
+  machine_id: true,
+  booking_id: true,
+  created_at: true,
+  machines: { select: { id: true, store_id: true, name: true, type: true } },
+} satisfies Prisma.machine_assignmentsSelect;
+type MachineAssignmentRecord = Prisma.machine_assignmentsGetPayload<{ select: typeof machineAssignmentSelect }>;
 
 interface Actor {
   id: number;
@@ -65,11 +98,23 @@ export class BookingService {
   ) {}
 
   /** Decimal trả về JSON dạng chuỗi, đổi sang number cho client. */
-  private serialize(booking: BookingRecord, items?: ItemRecord[]) {
+  private serialize(
+    booking: BookingRecord & {
+      delivery_trips?: DeliveryTripRecord[];
+      machine_assignments?: MachineAssignmentRecord[];
+    },
+    items?: ItemRecord[],
+  ) {
     const toNumber = (value: Prisma.Decimal | null) => value?.toNumber() ?? null;
 
     return {
       ...booking,
+      ...(booking.delivery_trips && {
+        delivery_trips: this.serializeDeliveryTrips(booking.delivery_trips),
+      }),
+      ...(booking.machine_assignments && {
+        machine_assignments: this.serializeMachineAssignments(booking.machine_assignments),
+      }),
       unit_price: booking.unit_price.toNumber(),
       estimated_weight_kg: toNumber(booking.estimated_weight_kg),
       actual_weight_kg: toNumber(booking.actual_weight_kg),
@@ -84,6 +129,14 @@ export class BookingService {
         })),
       }),
     };
+  }
+
+  private serializeDeliveryTrips(trips: DeliveryTripRecord[]) {
+    return trips.map(({ users: shipper, ...trip }) => ({ ...trip, shipper }));
+  }
+
+  private serializeMachineAssignments(assignments: MachineAssignmentRecord[]) {
+    return assignments.map(({ machines: machine, ...assignment }) => ({ ...assignment, machine }));
   }
 
   private isUniqueViolation(error: unknown) {
@@ -506,6 +559,10 @@ export class BookingService {
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          delivery_trips: { select: deliveryTripSelect, orderBy: { id: 'asc' } },
+          machine_assignments: { select: machineAssignmentSelect, orderBy: { id: 'asc' } },
+        },
       }),
     ]);
 
@@ -573,6 +630,8 @@ export class BookingService {
       where: { id },
       include: {
         booking_items: true,
+        delivery_trips: { select: deliveryTripSelect, orderBy: { id: 'asc' } },
+        machine_assignments: { select: machineAssignmentSelect, orderBy: { id: 'asc' } },
         laundry_stores: { select: { id: true, name: true, address: true } },
         // Tóm tắt thanh toán để UI biết đơn đã trả hay chưa (không lấy raw_response).
         payments: {
@@ -673,6 +732,66 @@ export class BookingService {
       refund_percent: refund,
       refund_status: refundStatus,
     };
+  }
+
+  /** Gán chuyến giao trả; booking chỉ chuyển delivering khi thực sự bắt đầu giao. */
+  async assignShipper(actor: Actor, id: number, dto: AssignShipperDto) {
+    const booking = await this.getOrThrow(id);
+    await this.storeService.assertCanManageStore(actor, booking.store_id);
+
+    if (booking.status !== 'ready_for_delivery') {
+      throw new BadRequestException(
+        'A shipper can only be assigned to a booking in "ready_for_delivery" status',
+      );
+    }
+    if (booking.in_store || !booking.delivery_address_id) {
+      throw new BadRequestException('Booking must have a delivery address and in_store must be false');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const shipper = await tx.users.findFirst({
+        where: { id: dto.shipper_id, role: 'shipper', status: 'active' },
+        select: { id: true },
+      });
+      if (!shipper) {
+        throw new NotFoundException('Active shipper not found');
+      }
+
+      // Khóa dòng booking và kiểm lại trạng thái trước khi sửa chuyến giao.
+      // Hai lần gán đồng thời được tuần tự hóa; changeStatus cũng cập nhật dòng này.
+      const { count } = await tx.bookings.updateMany({
+        where: {
+          id,
+          status: 'ready_for_delivery',
+          store_id: booking.store_id,
+          in_store: false,
+          delivery_address_id: booking.delivery_address_id,
+        },
+        data: { updated_at: new Date() },
+      });
+      if (count === 0) {
+        throw new ConflictException('Booking has changed, please reload and try again');
+      }
+
+      const where = { booking_id_trip_type: { booking_id: id, trip_type: 'delivery' as const } };
+      const trip = await tx.delivery_trips.findUnique({ where });
+      if (trip && trip.status !== 'unassigned' && trip.status !== 'assigned') {
+        throw new ConflictException('Cannot assign a shipper to a delivery trip that has already started or ended');
+      }
+
+      return tx.delivery_trips.upsert({
+        where,
+        create: {
+          booking_id: id,
+          trip_type: 'delivery',
+          shipper_id: shipper.id,
+          address_id: booking.delivery_address_id!,
+          scheduled_time: booking.estimated_delivery_at ?? storeNow(),
+          status: 'assigned',
+        },
+        update: { shipper_id: shipper.id, status: 'assigned' },
+      });
+    });
   }
 
   /** Admin / staff của cửa hàng: đẩy đơn sang trạng thái kế tiếp (hủy đơn dùng `cancel`). */
@@ -820,6 +939,9 @@ export class BookingService {
           pricing_unit: true,
           estimated_weight_kg: true,
 
+          delivery_trips: { select: deliveryTripSelect, orderBy: { id: 'asc' } },
+          machine_assignments: { select: machineAssignmentSelect, orderBy: { id: 'asc' } },
+
           users_bookings_customer_idTousers: {
             select: {
               id: true,
@@ -834,7 +956,11 @@ export class BookingService {
     ]);
 
     return {
-      data,
+      data: data.map((booking) => ({
+        ...booking,
+        delivery_trips: this.serializeDeliveryTrips(booking.delivery_trips),
+        machine_assignments: this.serializeMachineAssignments(booking.machine_assignments),
+      })),
       pagination: {
         page: safePage,
         limit: safeLimit,
@@ -888,6 +1014,9 @@ export class BookingService {
         pricing_unit: true,
         unit_price: true,
         delivery_price: true,
+
+        delivery_trips: { select: deliveryTripSelect, orderBy: { id: 'asc' } },
+        machine_assignments: { select: machineAssignmentSelect, orderBy: { id: 'asc' } },
 
         users_bookings_customer_idTousers: {
           select: {
@@ -959,6 +1088,10 @@ export class BookingService {
       throw new NotFoundException("Booking not found");
     }
 
-    return booking;
+    return {
+      ...booking,
+      delivery_trips: this.serializeDeliveryTrips(booking.delivery_trips),
+      machine_assignments: this.serializeMachineAssignments(booking.machine_assignments),
+    };
   }
 }

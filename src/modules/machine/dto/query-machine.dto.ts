@@ -7,6 +7,13 @@ import {
 } from '../../../generated/prisma/client.js';
 
 export class QueryMachineDto {
+  // Trả thêm tình trạng máy trong scheduled_pickup_start/end của booking này.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  booking_id?: number;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

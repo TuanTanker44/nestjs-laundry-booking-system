@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { Roles } from '../auth/decorators/role.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { UserService } from './user.service.js';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/update-user.dto.js';
+import { QueryShipperDto } from './dto/query-shipper.dto.js';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -77,6 +79,13 @@ export class UserController {
   @Roles('admin')
   findAll() {
     return this.userService.findAll();
+  }
+
+  // GET /users/shippers?search=&status=&page=&limit= — staff
+  @Get('shippers')
+  @Roles('laundry_staff')
+  findShippers(@Query() query: QueryShipperDto) {
+    return this.userService.findShippers(query);
   }
 
   // GET /users/:id — admin

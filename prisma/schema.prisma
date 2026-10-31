@@ -103,6 +103,7 @@ model bookings {
   complaints                                        complaints[]
   delivery_trips                                    delivery_trips[]
   machine_usage_logs                                machine_usage_logs[]
+  machine_assignments                               machine_assignments[]
   notifications                                     notifications[]
   payments                                          payments[]
   reviews                                           reviews?
@@ -237,6 +238,18 @@ model machine_usage_logs {
   @@index([machine_id, started_at, ended_at], map: "idx_machine_usage_machine_time")
 }
 
+model machine_assignments {
+  id         Int      @id @default(autoincrement())
+  machine_id Int
+  booking_id Int
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  machines   machines @relation(fields: [machine_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  bookings   bookings @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([machine_id, booking_id], map: "uq_machine_assignment_booking")
+  @@index([booking_id], map: "idx_machine_assignment_booking")
+}
+
 model machines {
   id                 Int                  @id @default(autoincrement())
   store_id           Int
@@ -247,6 +260,7 @@ model machines {
   created_at         DateTime             @default(now()) @db.Timestamp(6)
   updated_at         DateTime             @default(now()) @updatedAt @db.Timestamp(6)
   machine_usage_logs machine_usage_logs[]
+  machine_assignments machine_assignments[]
   laundry_stores     laundry_stores       @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_machines_store")
 
   @@index([status], map: "idx_machines_status")

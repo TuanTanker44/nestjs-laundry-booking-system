@@ -97,7 +97,7 @@ export class MachineController {
     return this.machineService.findUsageLogs(user, storeId, machineId, query);
   }
 
-  // POST /stores/:storeId/machines/:machineId/assign — gán máy cho đơn đang processing
+  // POST /stores/:storeId/machines/:machineId/assign — giữ máy theo khung giờ booking
   @Post(':machineId/assign')
   async assign(
     @CurrentUser() user: Express.User,
@@ -108,6 +108,31 @@ export class MachineController {
     return {
       message: 'Machine assigned successfully',
       data: await this.machineService.assign(user, storeId, machineId, dto),
+    };
+  }
+
+  // DELETE /stores/:storeId/machines/:machineId/assignments/:bookingId — bỏ lịch gán
+  @Delete(':machineId/assignments/:bookingId')
+  unassign(
+    @CurrentUser() user: Express.User,
+    @Param('storeId', ParseIntPipe) storeId: number,
+    @Param('machineId', ParseIntPipe) machineId: number,
+    @Param('bookingId', ParseIntPipe) bookingId: number,
+  ) {
+    return this.machineService.unassign(user, storeId, machineId, bookingId);
+  }
+
+  // POST /stores/:storeId/machines/:machineId/start — bắt đầu chạy máy trong ca đã gán
+  @Post(':machineId/start')
+  async startAssigned(
+    @CurrentUser() user: Express.User,
+    @Param('storeId', ParseIntPipe) storeId: number,
+    @Param('machineId', ParseIntPipe) machineId: number,
+    @Body() dto: AssignMachineDto,
+  ) {
+    return {
+      message: 'Machine started successfully',
+      data: await this.machineService.startAssigned(user, storeId, machineId, dto),
     };
   }
 

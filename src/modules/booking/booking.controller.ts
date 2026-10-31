@@ -20,6 +20,7 @@ import { CreateBookingDto } from './dto/create-booking.dto.js';
 import { QueryBookingDto } from './dto/query-booking.dto.js';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto.js';
 import { CancelBookingDto } from './dto/cancel-booking.dto.js';
+import { AssignShipperDto } from './dto/assign-shipper.dto.js';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -114,6 +115,20 @@ export class BookingController {
     return {
       message: 'Booking cancelled successfully',
       data: await this.bookingService.cancel(user, id, dto),
+    };
+  }
+
+  // POST /bookings/:id/assign-shipper — admin / staff của cửa hàng
+  @Post(':id/assign-shipper')
+  @Roles('admin', 'laundry_staff')
+  async assignShipper(
+    @CurrentUser() user: Express.User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignShipperDto,
+  ) {
+    return {
+      message: 'Shipper assigned successfully',
+      data: await this.bookingService.assignShipper(user, id, dto),
     };
   }
 

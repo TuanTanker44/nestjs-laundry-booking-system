@@ -1,15 +1,63 @@
 import { vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service.js';
+import { QueryShipperDto } from './dto/query-shipper.dto.js';
 
 function setup() {
-  const prisma = { users: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() } };
+  const prisma = { users: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() }, $transaction: vi.fn() };
+  prisma.$transaction.mockImplementation((queries: Promise<unknown>[]) => Promise.all(queries));
   const config = { get: vi.fn().mockReturnValue('4') };
   const refreshTokenService = { revokeAllByUserId: vi.fn() };
   return { service: new UserService(prisma as never, config as never, refreshTokenService as never), prisma, config, refreshTokenService };
 }
 
 describe('UserService', () => {
+  it('lists only active shippers by default with pagination and a limited projection', async () => {
+    const { service, prisma } = setup();
+    const shippers = [{ id: 10, full_name: 'Nguyễn Nam', email: 'nam@test.com', phone: '0901234567', avatar_url: null, status: 'active' }];
+    prisma.users.count.mockResolvedValue(1);
+    prisma.users.findMany.mockResolvedValue(shippers);
+
+    await expect(service.findShippers(new QueryShipperDto())).resolves.toEqual({
+      data: shippers, meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+    });
+    expect(prisma.users.count).toHaveBeenCalledWith({ where: { role: 'shipper', status: 'active' } });
+    expect(prisma.users.findMany).toHaveBeenCalledWith({
+      where: { role: 'shipper', status: 'active' },
+      select: { id: true, full_name: true, email: true, phone: true, avatar_url: true, status: true },
+      orderBy: [{ full_name: 'asc' }, { id: 'asc' }], skip: 0, take: 10,
+    });
+  });
+
+  it('applies shipper search and status to both count and data queries', async () => {
+    const { service, prisma } = setup();
+    prisma.users.count.mockResolvedValue(21);
+    prisma.users.findMany.mockResolvedValue([]);
+    const query = Object.assign(new QueryShipperDto(), { page: 3, limit: 10, search: ' Nam ', status: 'inactive' });
+    const result = await service.findShippers(query);
+    const where = {
+      role: 'shipper', status: 'inactive',
+      OR: [
+        { full_name: { contains: 'Nam', mode: 'insensitive' } },
+        { email: { contains: 'Nam', mode: 'insensitive' } },
+        { phone: { contains: 'Nam' } },
+      ],
+    };
+    expect(prisma.users.count).toHaveBeenCalledWith({ where });
+    expect(prisma.users.findMany).toHaveBeenCalledWith(expect.objectContaining({ where, skip: 20, take: 10 }));
+    expect(result.meta).toEqual({ total: 21, page: 3, limit: 10, totalPages: 3 });
+  });
+
+  it('ignores whitespace-only shipper search and returns an empty page', async () => {
+    const { service, prisma } = setup();
+    prisma.users.count.mockResolvedValue(0);
+    prisma.users.findMany.mockResolvedValue([]);
+    await expect(service.findShippers(Object.assign(new QueryShipperDto(), { search: '   ' }))).resolves.toEqual({
+      data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+    });
+    expect(prisma.users.count).toHaveBeenCalledWith({ where: { role: 'shipper', status: 'active' } });
+  });
+
   it('hashes passwords with configured salt rounds', async () => {
     const { service, config } = setup();
     const hash = await service.hashPassword('secret');

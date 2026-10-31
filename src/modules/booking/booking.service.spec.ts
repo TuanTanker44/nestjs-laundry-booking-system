@@ -1,5 +1,5 @@
 import { Decimal } from '@prisma/client/runtime/client';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { vi } from 'vitest';
 import { BookingService } from './booking.service.js';
 
@@ -16,6 +16,8 @@ function setup() {
     },
     services: { findFirst: vi.fn() },
     addresses: { count: vi.fn() },
+    users: { findFirst: vi.fn() },
+    delivery_trips: { findUnique: vi.fn(), upsert: vi.fn() },
     $transaction: vi.fn(),
     $executeRaw: vi.fn(),
   };
@@ -97,6 +99,104 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('BookingService', () => {
+  describe('assignShipper', () => {
+    const actor = { id: 1, role: 'laundry_staff' };
+    const payload = { shipper_id: 12 };
+
+    function readySetup(overrides: Record<string, unknown> = {}) {
+      const context = setup();
+      context.prisma.bookings.findUnique.mockResolvedValue(booking({
+        status: 'ready_for_delivery', delivery_address_id: 30,
+        estimated_delivery_at: new Date('2026-10-28T15:00:00Z'), ...overrides,
+      }));
+      context.prisma.bookings.updateMany.mockResolvedValue({ count: 1 });
+      context.prisma.users.findFirst.mockResolvedValue({ id: 12 });
+      context.prisma.delivery_trips.findUnique.mockResolvedValue(null);
+      context.prisma.delivery_trips.upsert.mockResolvedValue({ id: 50, booking_id: 7, shipper_id: 12, trip_type: 'delivery', status: 'assigned' });
+      return context;
+    }
+
+    it('creates an assigned delivery trip and keeps the booking ready_for_delivery', async () => {
+      const { service, prisma, storeService } = readySetup();
+      await expect(service.assignShipper(actor, 7, payload)).resolves.toMatchObject({ booking_id: 7, shipper_id: 12, status: 'assigned' });
+      expect(storeService.assertCanManageStore).toHaveBeenCalledWith(actor, 1);
+      expect(prisma.users.findFirst).toHaveBeenCalledWith({ where: { id: 12, role: 'shipper', status: 'active' }, select: { id: true } });
+      expect(prisma.bookings.updateMany).toHaveBeenCalledWith({
+        where: { id: 7, status: 'ready_for_delivery', store_id: 1, in_store: false, delivery_address_id: 30 },
+        data: { updated_at: NOW },
+      });
+      expect(prisma.delivery_trips.upsert).toHaveBeenCalledWith({
+        where: { booking_id_trip_type: { booking_id: 7, trip_type: 'delivery' } },
+        create: { booking_id: 7, trip_type: 'delivery', shipper_id: 12, address_id: 30,
+          scheduled_time: new Date('2026-10-28T15:00:00Z'), status: 'assigned' },
+        update: { shipper_id: 12, status: 'assigned' },
+      });
+    });
+
+    it.each(['unassigned', 'assigned'])('can assign or reassign an existing %s delivery trip', async (status) => {
+      const { service, prisma } = readySetup();
+      prisma.delivery_trips.findUnique.mockResolvedValue({ id: 50, status, shipper_id: 11 });
+      await service.assignShipper(actor, 7, payload);
+      expect(prisma.delivery_trips.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: { shipper_id: 12, status: 'assigned' } }));
+    });
+
+    it('uses local store time when estimated_delivery_at is absent', async () => {
+      const { service, prisma } = readySetup({ estimated_delivery_at: null });
+      await service.assignShipper(actor, 7, payload);
+      expect(prisma.delivery_trips.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ scheduled_time: new Date('2026-10-28T17:00:00Z') }),
+      }));
+    });
+
+    it('rejects a missing booking', async () => {
+      const { service, prisma } = readySetup();
+      prisma.bookings.findUnique.mockResolvedValue(null);
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects staff who cannot manage the booking store before writing', async () => {
+      const { service, prisma, storeService } = readySetup();
+      storeService.assertCanManageStore.mockRejectedValue(new ForbiddenException());
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it.each(['confirmed', 'processing', 'delivering', 'completed', 'cancelled'])('rejects a booking in %s status', async (status) => {
+      const { service, prisma } = readySetup({ status });
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it.each([{ in_store: true }, { delivery_address_id: null }])('rejects a booking without delivery support: %j', async (overrides) => {
+      const { service, prisma } = readySetup(overrides);
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing, inactive, or non-shipper users', async () => {
+      const { service, prisma } = readySetup();
+      prisma.users.findFirst.mockResolvedValue(null);
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.bookings.updateMany).not.toHaveBeenCalled();
+      expect(prisma.delivery_trips.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejects a booking changed concurrently', async () => {
+      const { service, prisma } = readySetup();
+      prisma.bookings.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.delivery_trips.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each(['in_progress', 'completed', 'failed', 'cancelled'])('does not overwrite a %s delivery trip', async (status) => {
+      const { service, prisma } = readySetup();
+      prisma.delivery_trips.findUnique.mockResolvedValue({ id: 50, status });
+      await expect(service.assignShipper(actor, 7, payload)).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.delivery_trips.upsert).not.toHaveBeenCalled();
+    });
+  });
+
   describe('quote', () => {
     it('returns calculated price and remaining slots for a valid booking', async () => {
       const { service, prisma, scheduleService } = setup();
