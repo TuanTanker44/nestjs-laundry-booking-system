@@ -80,6 +80,20 @@ export class AddressService {
    * Địa chỉ đầu tiên luôn là địa chỉ mặc định.
    */
   async create(userId: number, dto: CreateAddressDto) {
+    const duplicate = await this.prisma.addresses.findFirst({
+      where: {
+        address_line: dto.address_line,
+        ward: dto.ward ?? null,
+        district: dto.district ?? null,
+        city: dto.city ?? null,
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new ConflictException('Address already exists');
+    }
+
     const coordinates = await this.tryGeocode(dto);
 
     return this.prisma.$transaction(async (tx) => {

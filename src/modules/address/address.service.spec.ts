@@ -10,6 +10,63 @@ function setup() {
 const address = (overrides: Record<string, unknown> = {}) => ({ id: 1, user_id: 7, label: 'Home', recipient_name: 'A', phone: '090', address_line: '123 ABC', ward: 'P. 1', district: 'Q. 1', city: 'HCM', latitude: null, longitude: null, is_default: true, created_at: new Date(), ...overrides }) as any;
 
 describe('AddressService', () => {
+  it('rejects an exact duplicate across users with 409 before geocoding or writing', async () => {
+    const { service, prisma, mapsService } = setup();
+    prisma.addresses.findFirst.mockResolvedValue({ id: 99 });
+
+    await expect(service.create(7, {
+      recipient_name: 'Nguyễn Văn A',
+      phone: '0901234567',
+      address_line: '123 ABC',
+      ward: 'P. 1',
+      district: 'Q. 1',
+      city: 'HCM',
+      is_default: true,
+    })).rejects.toMatchObject({ status: 409, message: 'Address already exists' });
+
+    expect(prisma.addresses.findFirst).toHaveBeenCalledWith({
+      where: { address_line: '123 ABC', ward: 'P. 1', district: 'Q. 1', city: 'HCM' },
+      select: { id: true },
+    });
+    expect(mapsService.geocodeAddress).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.addresses.create).not.toHaveBeenCalled();
+    expect(prisma.addresses.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('matches missing optional location fields as null without ignoring them', async () => {
+    const { service, prisma } = setup();
+    prisma.addresses.findFirst.mockResolvedValue({ id: 99 });
+
+    await expect(service.create(7, {
+      recipient_name: 'Nguyễn Văn A', phone: '0901234567', address_line: '123 ABC',
+    })).rejects.toMatchObject({ status: 409 });
+    expect(prisma.addresses.findFirst).toHaveBeenCalledWith({
+      where: { address_line: '123 ABC', ward: null, district: null, city: null },
+      select: { id: true },
+    });
+  });
+
+  it('creates an address when there is no exact match and preserves input casing and spaces', async () => {
+    const { service, prisma, mapsService } = setup();
+    prisma.addresses.findFirst.mockResolvedValue(null);
+    prisma.addresses.count.mockResolvedValue(1);
+    mapsService.geocodeAddress.mockResolvedValue({ lat: 10, lng: 106 });
+    prisma.addresses.create.mockResolvedValue(address());
+
+    await service.create(7, {
+      recipient_name: 'Nguyễn Văn A', phone: '0901234567',
+      address_line: '123 abc ', ward: '', district: 'Q. 1', city: 'hcm',
+    });
+    expect(prisma.addresses.findFirst).toHaveBeenCalledWith({
+      where: { address_line: '123 abc ', ward: '', district: 'Q. 1', city: 'hcm' },
+      select: { id: true },
+    });
+    expect(prisma.addresses.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ address_line: '123 abc ', ward: '', city: 'hcm', is_default: false }),
+    }));
+  });
+
   it('makes the first address default', async () => {
     const { service, prisma, mapsService } = setup();
     prisma.addresses.count.mockResolvedValue(0);
@@ -44,7 +101,7 @@ describe('AddressService', () => {
 
   it('re-geocodes when location changes and can make address default', async () => {
     const { service, prisma, mapsService } = setup();
-    prisma.addresses.findFirst.mockResolvedValue(address());
+    prisma.addresses.findFirst.mockResolvedValue(address({ is_default: false }));
     mapsService.geocodeAddress.mockResolvedValue({ lat: 11, lng: 107 });
     prisma.addresses.update.mockResolvedValue(address({ is_default: true }));
     await service.update(7, 1, { city: 'Da Nang', is_default: true } as any);
