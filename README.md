@@ -1,6 +1,7 @@
 # Laundry Booking System
 
 API backend cho hệ thống đặt lịch giặt là: khách hàng đặt đơn giặt (lấy tại cửa hàng hoặc giao nhận tận nơi), thanh toán online, cửa hàng và nhân viên quản lý lịch, dịch vụ, khuyến mãi và trạng thái đơn.
+Link demo testing: https://drive.google.com/file/d/17UDsdSo0szWrrV4VvJh2mrrX5pWhBysg/view?usp=sharing
 
 ## Công nghệ
 
